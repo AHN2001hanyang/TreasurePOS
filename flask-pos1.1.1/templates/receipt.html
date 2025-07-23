@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Receipt</title>
+    <!-- Art font for brand name -->
+    <link href="https://fonts.googleapis.com/css?family=Pacifico:700&family=Montserrat:400,600&display=swap" rel="stylesheet">
+    <style>
+        @media print {
+            body { margin:0; background: #fff; }
+            .receipt { width:80mm; min-height:380px; margin:0 auto; border:none; box-shadow:none; }
+            .no-print { display: none; }
+            .logo-container img { max-width: 60mm; }
+        }
+        body { background: #f8fafc; margin: 0; font-family: 'Montserrat', Arial, sans-serif;}
+        .receipt {
+            width: 80mm;
+            min-height: 380px;
+            margin: 0 auto;
+            padding: 18px 10px 14px 10px;
+            border: none;
+            font-size: 15px;
+            background: #fff;
+            box-sizing: border-box;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px #0001;
+        }
+        .logo-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .logo-container img {
+            /* 打印时宽度 0.5 倍、最大宽度为 60mm，自动居中 */
+            width: 50%;
+            max-width: 60mm;
+            min-width: 32mm;
+            height: auto;
+            display: block;
+            margin: 0 auto 2px auto;
+            object-fit: contain;
+        }
+        .brand {
+            font-family: 'Pacifico', cursive;
+            font-size: 2.3em;
+            text-align: center;
+            margin-bottom: 3px;
+            color: #E94057;
+            letter-spacing: 3.5px;
+            font-weight: 700;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 13px;
+            color: #7e7e7e;
+            margin-bottom: 10px;
+            font-family: 'Montserrat', Arial, sans-serif;
+            font-weight: 600;
+            letter-spacing: 1.2px;
+        }
+        .meta {
+            text-align: left;
+            color: #444;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        table { width:100%; border-collapse:collapse; margin-top:10px; }
+        th, td { border-bottom:1px dashed #ececec; text-align:left; padding: 4px 0 3px 0;}
+        th { font-weight: 600; background: #f3f6fb; font-size: 14px; letter-spacing: 0.2em; }
+        td { font-size: 15px;}
+        .footer {
+            margin-top: 14px; 
+            text-align: right; 
+            font-size: 17px; 
+            color: #222;
+            font-family: 'Montserrat', Arial, sans-serif;
+        }
+        .thanks {
+            font-size: 13px;
+            text-align: center;
+            color: #999;
+            margin-top: 18px;
+            letter-spacing: 1px;
+        }
+        hr {
+            border: none; 
+            border-top: 1.5px solid #eee; 
+            margin: 13px 0 11px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <!-- LOGO（建议图片分辨率宽度约300-400像素，1:1或横向） -->
+        <div class="logo-container">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Treasure Island Logo">
+        </div>
+        <!-- 如需文字logo可保留
+        <div class="brand">Treasure Island</div>
+        -->
+        <div class="subtitle">WOMEN'S FASHION · WHOLESALE · RETAIL</div>
+        <div class="meta">Order No: <b>{{ sale_id }}</b></div>
+        <div class="meta">Date: {{ time }}</div>
+        <hr>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 44%;">Product</th>
+                    <th style="width: 14%;">Qty</th>
+                    <th style="width: 20%;">Price</th>
+                    <th style="width: 22%;">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for bc, item in items.items() %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.qty }}</td>
+                    <td>KRW {{ item.price }}</td>
+                    <td>KRW {{ (item.qty * item.price)|round(2) }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <hr>
+        <div class="footer">Total: <b>KRW {{ total|round(2) }}</b></div>
+        <div class="thanks">
+            Thank you for shopping at <b style="color:#E94057;">Treasure Island</b>!<br>
+            Visit again · Wholesale & Retail Fashion<br>
+            Contact: 010-xxxx-xxxx
+        </div>
+        <button class="no-print" onclick="window.print()" style="width:100%;margin-top:20px;">Print</button>
+    </div>
+</body>
+</html>

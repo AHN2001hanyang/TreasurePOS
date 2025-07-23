@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>소형 POS 계산대</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <style>
+        body { background: #f3f6fb; }
+        .cart-table { background: #fff; border-radius: 10px; box-shadow: 0 2px 6px #0001;}
+        .search-result { background: #fff; border-radius: 6px; box-shadow: 0 2px 6px #0002; padding: 8px; }
+        .qty-btn { width: 28px; height: 28px; padding: 0;}
+        .del-btn { color: #c00; cursor: pointer;}
+        #scannerInput { margin-bottom: 16px; width: 80%; }
+    </style>
+</head>
+<body class="container py-4">
+    <nav class="mb-3">
+      <a href="/" class="btn btn-link" id="nav-main">계산대</a>
+      <a href="/manage" class="btn btn-link" id="nav-manage">상품관리</a>
+      <a href="/sales" class="btn btn-link" id="nav-sales">판매내역</a>
+      <a href="/stockio" class="btn btn-link" id="nav-stock">수동입/출고</a>
+    </nav>
+    <h2 class="mb-4 text-primary" id="main-title">소형 POS 계산대</h2>
+    <div class="mb-2">
+        <label id="scanner-label">바코드 스캐너 또는 수동 입력:</label>
+        <input id="scannerInput" type="text" class="form-control" autofocus autocomplete="off" placeholder="바코드를 스캔하거나 직접 입력하세요" />
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <label id="search-label">상품 검색:</label>
+            <input class="form-control mb-2" type="text" id="searchInput" placeholder="바코드 또는 상품명 입력" oninput="searchProduct()" autocomplete="off">
+            <div id="searchResult" class="search-result"></div>
+            <div class="text-muted mt-2" style="font-size:13px;" id="search-tip">바코드 스캔, 직접 입력, 상품명 검색 가능</div>
+        </div>
+        <div class="col-md-6">
+            <h4 id="cart-title">장바구니</h4>
+            <table class="table cart-table" id="cartTable">
+                <thead>
+                    <tr>
+                        <th id="th-barcode">바코드</th>
+                        <th id="th-name">상품명</th>
+                        <th id="th-qty">수량</th>
+                        <th id="th-price">단가</th>
+                        <th id="th-subtotal">소계</th>
+                        <th id="th-action">작업</th>
+                    </tr>
+                </thead>
+                <tbody id="cartBody"></tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="5" class="text-end" id="tfoot-sum">합계:</td>
+                        <td id="totalPrice">₩0.00</td>
+                    </tr>
+                </tfoot>
+            </table>
+            <button class="btn btn-primary" id="checkout-btn" onclick="checkout()">결제</button>
+        </div>
+    </div>
+    <div id="msg" class="mt-3"></div>
+    <script>
+        // --- 텍스트/버튼 한글로 고정 ---
+        // --- 기능 ---
+        let cart = {};
+        let allProducts = [];
+
+        document.getElementById('scannerInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const barcode = e.target.value.trim();
+                e.target.value = '';
+                if (barcode) {
+                    addToCart(barcode);
+                }
+                setTimeout(() => e.target.focus(), 0);
+            }
+        });
+        document.body.addEventListener('click', function(e){
+            if (e.target.id === 'searchInput') return;
+            document.getElementById('scannerInput').focus();
+        });
+        document.getElementById('searchInput').addEventListener('blur', function(){
+            setTimeout(()=>document.getElementById('scannerInput').focus(), 100);
+        });
+
+        // 상품 미리 불러오기
+        async function preloadProducts() {
+            const resp = await fetch('/api/items');
+            if (resp.ok) {
+                allProducts = await resp.json();
+            }
+        }
+        preloadProducts();
+
+        function searchProduct() {
+            const kw = document.getElementById('searchInput').value.trim();
+            const div = document.getElementById('searchResult');
+            div.innerHTML = '';
+            if (!kw) return;
+            const matched = allProducts.filter(p =>
+                p.barcode.includes(kw) || p.name.includes(kw)
+            );
+            if (matched.length === 0) {
+                div.innerHTML = `<span class="text-muted">관련 상품 없음</span>`;
+                return;
+            }
+            div.innerHTML = matched.slice(0, 10).map(p => `
+                <div class="d-flex align-items-center mb-2">
+                  <span class="me-2">[${p.barcode}] ${p.name} ₩${p.price} (재고:${p.qty})</span>
+                  <button class="btn btn-sm btn-outline-success ms-auto" onclick="addToCart('${p.barcode}')">추가</button>
+                </div>
+            `).join('');
+        }
+
+        async function addToCart(barcode) {
+            const resp = await fetch('/api/item/' + barcode);
+            let item;
+            if (resp.ok) {
+                item = await resp.json();
+            } else {
+                document.getElementById('msg').innerHTML = `<span class="text-danger">관련 상품 없음: ${barcode}</span>`;
+                return;
+            }
+            // 매진/절판 체크
+            if (item.status === '절판') {
+                document.getElementById('msg').innerHTML = `<span class="text-danger">[${item.name}]은(는) 절판 상품입니다.</span>`;
+                return;
+            }
+            if (item.qty <= 0 || item.status === '매진') {
+                document.getElementById('msg').innerHTML = `<span class="text-danger">[${item.name}]은(는) 매진되었습니다.</span>`;
+                return;
+            }
+            if (cart[barcode]) {
+                if (cart[barcode].qty + 1 > item.qty) {
+                    document.getElementById('msg').innerHTML = `<span class="text-danger">재고를 초과할 수 없습니다.</span>`;
+                    return;
+                }
+                cart[barcode].qty += 1;
+            } else {
+                cart[barcode] = {
+                    name: item.name,
+                    price: item.price,
+                    qty: 1
+                };
+            }
+            updateCartUI();
+            document.getElementById('msg').innerHTML = `<span class="text-success">추가됨: ${item.name}</span>`;
+        }
+
+        function updateCartUI() {
+            const tbody = document.getElementById('cartBody');
+            tbody.innerHTML = '';
+            let total = 0;
+            Object.entries(cart).forEach(([barcode, item]) => {
+                const subtotal = item.qty * item.price;
+                total += subtotal;
+                tbody.innerHTML += `<tr>
+                    <td>${barcode}</td>
+                    <td>${item.name}</td>
+                    <td>
+                        <button class="btn btn-light qty-btn" onclick="changeQty('${barcode}', -1)">-</button>
+                        <input type="number" min="1" style="width:48px;display:inline;" value="${item.qty}" onchange="inputQty('${barcode}', this.value)">
+                        <button class="btn btn-light qty-btn" onclick="changeQty('${barcode}', 1)">+</button>
+                    </td>
+                    <td>₩${item.price}</td>
+                    <td>₩${subtotal.toFixed(2)}</td>
+                    <td>
+                        <span class="del-btn" onclick="removeFromCart('${barcode}')">제거</span>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById('totalPrice').innerText = '₩' + total.toFixed(2);
+        }
+
+        function changeQty(barcode, delta) {
+            if (!cart[barcode]) return;
+            cart[barcode].qty += delta;
+            if (cart[barcode].qty < 1) cart[barcode].qty = 1;
+            updateCartUI();
+        }
+
+        function inputQty(barcode, value) {
+            if (!cart[barcode]) return;
+            let qty = parseInt(value);
+            if (isNaN(qty) || qty < 1) qty = 1;
+            cart[barcode].qty = qty;
+            updateCartUI();
+        }
+
+        function removeFromCart(barcode) {
+            if (!cart[barcode]) return;
+            delete cart[barcode];
+            updateCartUI();
+        }
+
+        function checkout() {
+            if (Object.keys(cart).length === 0) {
+                document.getElementById('msg').innerHTML = `<span class="text-danger">장바구니가 비었습니다!</span>`;
+                return;
+            }
+            let total = 0;
+            Object.values(cart).forEach(item => total += item.qty * item.price);
+            fetch('/api/sale', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({cart, total})
+            }).then(res => res.json()).then(data => {
+                document.getElementById('msg').innerHTML = `
+                    <span class="text-info">결제 완료! 판매가 기록되었습니다.</span>
+                    <button class="btn btn-success btn-sm mt-2" onclick="printReceipt(${data.sale_id})">영수증 출력</button>
+                `;
+                cart = {};
+                updateCartUI();
+            });
+        }
+
+        function printReceipt(sale_id) {
+            fetch(`/api/print_receipt/${sale_id}`, {method: 'POST'})
+            .then(res => res.json())
+            .then(data => {
+                if (data.msg === 'ok') {
+                    alert('영수증이 프린터로 전송되었습니다');
+                } else {
+                    alert('출력 실패: ' + data.msg);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
