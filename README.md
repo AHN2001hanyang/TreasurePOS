@@ -1,26 +1,30 @@
 # Zebra_pos_system
 Python-based POS system for Zebra printers（flask）
 ZEBRA ZD230
-Zebra_pos_system is an open-source Point-of-Sale (POS) platform built with Python and Flask, optimized for use with Zebra printers (including the ZD230 series). This system is designed for small businesses, retail stores, and any environment seeking automated sales, inventory management, and efficient receipt or barcode printing. 
+Zebra_pos_system is an open-source POS (Point-of-Sale) system designed specifically for Korean small business owners, supporting only single-user mode and providing a full Korean-language interface. Developed using Python and Flask, this application is optimized for use with Zebra printers (such as the ZD230 series), making it ideal for retail shops, convenience stores, and small restaurants in Korea that require basic, local-language sales and inventory management.
 
-The core features of Zebra_pos_system include a user-friendly web interface, integrated SQLite database for secure sales and inventory tracking, and seamless local/LAN deployment. It supports custom printing templates to suit a variety of industries and business workflows, as well as file uploads, user permissions management, and multi-language expansion. With straightforward environment configuration, you can quickly deploy and run Zebra_pos_system on Windows, Mac, or Linux, making it an ideal choice for organizations seeking digital transformation and business process automation.
+Unlike more complex POS solutions, Zebra_pos_system is intentionally simple: there is no multi-user support, no language switching, and no user authentication or permissions modules. The system is intended to run on a single computer and is operated by one user at a time, with all data stored locally in an SQLite database for security and privacy. All operations, including sales, inventory management, and receipt/barcode printing, are performed through a web browser interface in Korean, supporting Windows, Mac, and Linux systems.
 
-Beyond basic sales and inventory operations, Zebra_pos_system allows for exporting data reports, tracking sales performance, and handling print jobs directly to Zebra printers, ensuring reliable and professional receipts and barcode labels. The system emphasizes extensibility: developers and companies are encouraged to customize or extend the platform for their unique business needs, such as integrating third-party APIs, adding new modules, or adapting the user interface.
+Key features include product registration and management, real-time inventory updates, sales transaction recording, and direct Korean-language receipt and barcode printing via Zebra printers. The system also allows for basic data export (such as to Excel files) for accounting or reporting purposes. The absence of multi-user or multilingual modules means Zebra_pos_system is highly reliable and easy to deploy, with minimal setup required.
 
-The project is fully open-source and community-driven. Detailed installation guides, feature documentation, and API references are available on the repository homepage and README file. Developers and users are welcome to contribute via issues or pull requests, helping to build a smarter, more efficient solution for sales, inventory, and printing management. Experience the benefits of automation and digital management with Zebra_pos_system!
-
-
-Zebra_pos_system은 Python과 Flask를 기반으로 한 오픈소스 POS(판매시점 관리) 시스템으로, Zebra 프린터(ZD230 등)를 위한 최적화된 솔루션입니다. 중소기업, 소매점, 자동화된 판매 및 재고 관리를 필요로 하는 모든 환경에 적합하며, 판매 처리, 재고 관리, 주문 관리, 데이터 리포트 내보내기, Zebra 프린터를 통한 영수증 및 바코드 출력 등 다양한 기능을 통합 제공합니다.
-
-이 프로젝트는 사용하기 쉬운 웹 인터페이스와 내장 SQLite 데이터베이스로 판매/재고 정보를 안전하게 저장하며, 로컬 및 사내 네트워크 환경에서 쉽게 배포할 수 있습니다. 맞춤형 출력 템플릿 지원, 파일 업로드, 사용자 권한 관리 및 다국어 확장 기능도 제공합니다. Windows, Mac, Linux 등 다양한 운영체제에서 간편하게 실행 가능하여, 소상공인 및 스타트업의 업무 디지털 전환과 효율적 자동화를 지원합니다.
-
-Zebra_pos_system은 오픈소스 및 커뮤니티 협업을 지향하며, 개발자와 기업의 맞춤형 기능 추가·인터페이스 연동을 환영합니다. 설치 및 실행 가이드, 기능 설명, API 문서는 프로젝트 홈페이지와 README 파일에서 확인하세요. 이슈 및 풀리퀘스트(기여)로 프로젝트 발전에 함께 참여해 주세요. 쉽고 똑똑한 POS/재고/프린트 관리를 경험해보세요!
+This project is open-source, tailored for small Korean businesses and shop owners who need straightforward POS and inventory functionality in a single-user, Korean-only environment. Community suggestions and contributions are welcome, especially from users wishing to improve or extend the software. Please refer to the README file for detailed installation, deployment, and usage instructions.
 
 
-Zebra_pos_system 是一个基于 Python 和 Flask 的开源 POS（收银系统）项目，专为 Zebra 打印机（如 ZD230 系列）设计，适用于中小企业、零售商店以及需要自动化收银和库存管理的场景。本系统集成了商品销售、库存管理、订单处理、数据报表导出和 Zebra 打印机小票/条码打印等一站式功能，支持多终端和多用户操作。
+Zebra_pos_system은 한국 소상공인을 위해 개발된 단일 사용자용 오픈소스 POS(판매시점 관리) 시스템입니다. Python과 Flask로 제작되었으며, 모든 화면과 출력이 한국어로 제공됩니다. Zebra 프린터(ZD230 시리즈 등)와 연동되어 소매점, 편의점, 작은 음식점 등에서 사용할 수 있도록 설계되었습니다. 시스템은 상품 판매, 재고 관리, 영수증 및 바코드 출력 등 필수 기능에 집중하여, 복잡한 다국어 지원이나 다중 사용자/권한 기능 없이 쉽고 빠르게 사용할 수 있습니다.
 
-项目特点包括：简洁直观的网页端操作界面，内置 SQLite 数据库存储销售和库存数据，支持本地或局域网部署；可自定义打印模板，满足不同行业需求；同时系统支持文件上传、用户权限管理和多语言扩展。通过简单的环境配置即可在 Windows、Mac 和 Linux 上快速部署上线，助力小微企业数字化管理和业务自动化。
+본 시스템은 단일 사용자를 위한 솔루션으로, 로그인이나 사용자 관리 절차 없이 한 대의 컴퓨터에서 운영됩니다. 모든 데이터는 로컬 SQLite 데이터베이스에 저장되어, 네트워크 연결 없이도 안전하게 사용할 수 있습니다. 웹 브라우저를 통해 POS 기능을 실행할 수 있으며, Windows, Mac, Linux 환경에서 바로 설치하고 사용할 수 있습니다.
 
-Zebra_pos_system 强调开源与社区协作，欢迎开发者和企业根据自身需求进行二次开发、功能扩展或接口集成。详细的安装部署指南、功能文档和 API 说明请参见项目主页和 README 文件。欢迎通过 Issue 或 Pull Request 参与贡献，让收银、库存和打印管理更加智能高效！
+주요 기능은 상품 등록 및 관리, 재고 실시간 확인, 판매 내역 기록, 영수증 및 바코드의 한국어 출력, 그리고 기본적인 데이터 내보내기(엑셀 등)를 포함합니다. 단순성과 안정성에 중점을 두었으며, 누구나 쉽게 배포하고 유지관리할 수 있습니다.
+
+Zebra_pos_system은 한글 전용, 단일 사용자 환경에 최적화되어 있으며, 복잡한 시스템이 필요 없는 소규모 매장에서 활용하기에 적합합니다. 프로젝트는 오픈소스로 운영되며, 사용 경험 및 기능 개선 의견을 환영합니다. 자세한 설치 및 사용법은 README 파일을 참고해 주세요.
+
+
+Zebra_pos_system 是一个专为韩国本地中小商户开发的单用户版开源 POS（收银系统），使用 Python 与 Flask 框架实现，界面语言为韩文。该系统主要配合 Zebra 打印机（如 ZD230 系列）使用，适用于零售、便利店、小型餐饮等业务场景。项目集成了商品销售、库存管理、小票和条码打印等基础功能，简洁高效，适合对多语言和多用户权限没有需求的个人或小型商户。
+
+本系统设计理念是简单易用，界面全部为韩文，方便韩国用户直接上手，无需额外的语言切换或复杂配置。数据采用本地 SQLite 数据库存储，保障单台设备上的业务数据安全。操作全部通过浏览器完成，支持 Windows、Mac 和 Linux 等主流桌面操作系统，无需专业 IT 支持即可安装部署。
+
+功能方面，用户可录入和管理商品信息、实时更新库存、生成销售单据，并直接通过 Zebra 打印机打印韩文收据和条码标签。支持简单的数据导出，便于日常对账和报表统计。由于是单用户系统，无需登录或用户管理模块，进一步简化了操作流程。
+
+Zebra_pos_system 以开源形式发布，适合需要基础收银和库存功能、仅使用韩文、仅在单台电脑上操作的商户。欢迎有相关需求的用户和开发者提出建议或参与代码完善。安装、部署和功能文档请参考仓库 README 文件。
 
 
