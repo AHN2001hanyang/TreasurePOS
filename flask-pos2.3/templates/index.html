@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ texts['title'] }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        html, body { height: 100%; background-color: #f8f9fa; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;}
+        body { font-size: 1.07rem;}
+        main { min-height: 80vh; }
+        /* 导航极致紧凑 */
+        header { margin-bottom: 0.6rem !important; }
+        .nav-pills .nav-link { font-weight: 600; padding: 0.42em 1.18em; border-radius: 10px; }
+        .header-bar {padding: 0.13rem 0 0.10rem 0 !important;}
+        .top-filter-bar { background: #fff; border-radius: 0.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); padding: 0.62rem 1rem 0.58rem 1.05rem;}
+        #scannerInput { border-radius: 0.5rem;}
+        .sort-btn { color: #6c757d; border-bottom: 2.5px solid transparent; padding-bottom: 2px; border-radius: 0;}
+        .sort-btn.active, .sort-btn:hover { color: #0d6efd; border-bottom: 2.5px solid #0d6efd;}
+        .badge-wholesale { background: #fff3cd; color: #856404; font-size:0.98em; vertical-align:middle; border-radius:8px; padding: 0.2em 0.7em;}
+        .badge-retail { background: #e2e3e5; color: #323538; font-size:0.98em; vertical-align:middle; border-radius:8px; padding: 0.2em 0.7em;}
+        .cart-table thead { position: sticky; top: 0; background: #fff; z-index: 10;}
+        .cart-table th, .cart-table td {padding-top: 1.05em; padding-bottom: 1.05em; font-size: 1.1em;}
+        .cart-table td { vertical-align: middle;}
+        .del-btn { color: #dc3545; cursor: pointer; font-size: 1.23rem;}
+        .del-btn:hover { color: #a71d2a;}
+        .qty-input-group { max-width: 130px;}
+        #msg { position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 250px;}
+        .search-result-item.out-of-stock, .search-result-item.sold-out { opacity: 0.55; background: #f8f8f8 !important; color: #888 !important; pointer-events: none;}
+        .category-tag { font-size:0.97em; color:#969696; margin-left:5px;}
+        .product-prices { line-height:1.5; }
+        .card { border: none; border-radius: 0.85rem; box-shadow: 0 4px 14px 0 rgba(120,130,140,0.08); display:flex; }
+        .card-body-scroll { display:flex; flex-direction:column; overflow:hidden; min-height: 420px; }
+        /* 让两列等高 */
+        .row.g-4{ align-items:stretch; }
+
+        /* 内部滚动的两个区域：占满高度 */
+        #searchResult{ flex:1; min-height:0; overflow:auto; }
+        .table-responsive.flex-grow-1{ flex:1; min-height:0; overflow:auto; }
+        #cartTable { min-height: 56px; }
+        #cartBody { max-height: none; overflow: visible; }
+
+        .vat-notice-box { text-align: right; color: #555; font-weight: bold; font-size: 14px; margin-bottom: 0.2em; margin-top: 0.1em;}
+        .vat-row-box { text-align: right; color: #000; font-weight: bold; font-size: 15px; margin-bottom: 0.2em; margin-top: 0.1em;}
+        /* 结算横排区域 */
+        .checkout-flex { display: flex; align-items: end; justify-content: space-between; gap: 1.5em; flex-wrap: wrap;}
+        .checkout-selectors {display: flex; align-items:center; gap:1.2em; flex-wrap: wrap;}
+        .checkout-selectors label { margin-bottom:0; font-weight:500; font-size:1em;}
+        #priceTypeSelect, .btn-group .btn { font-size: 1em; border-radius: 6px;}
+        #pay-cash.active, #pay-card.active {box-shadow:0 2px 8px #51e29c29;}
+        #totalPrice { font-size: 1.55rem !important; letter-spacing: 0.5px;}
+        #checkout-btn { font-size: 1.11rem; padding: 0.72em 0; min-height: 46px; border-radius: 0.8em;}
+        #tfoot-sum { margin-bottom: 0.2rem;}
+        .table-responsive {margin-bottom:0.8em;}
+
+        /* ====== Toast 主题 ====== */
+        .toast-gray-dark {
+            background: #434b53bc !important;
+            color: #fff !important;
+            border: 0 !important;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+        }
+        .toast-gray-dark .toast-body { color: #fff !important; }
+        .toast-gray-dark .btn-close { filter: invert(1) brightness(1.6); opacity: .85; }
+        .toast-gray-dark .btn-close:hover { opacity: 1; }
+
+        .toast-gray-light {
+            background: #eef1f4 !important;
+            color: #212529 !important;
+            border: 1px solid #dfe3e8 !important;
+            box-shadow: 0 8px 18px rgba(0,0,0,.15);
+        }
+        .toast-gray-light .toast-body { color: #2125298f !important; }
+        .toast-gray-light .btn-close { filter: none; opacity: .6; }
+        .toast-gray-light .btn-close:hover { opacity: .9; }
+
+        #msg .toast { border-radius: 12px; overflow: hidden; margin-bottom: 10px; }
+
+        /* 响应式下只保底高度，真正高度交给 JS 计算设置 */
+        @media (max-width: 1200px) { .card-body-scroll{ min-height: 360px; } }
+        @media (max-width: 992px)  {
+            .row.g-4 > [class^='col-'] { flex: 100%; max-width: 100%; }
+            .card-body-scroll{ min-height: 220px; }
+        }
+        @media (max-width: 600px)  { .card-body-scroll{ min-height: 160px; } }
+    </style>
+</head>
+<body class="container-fluid py-2">
+    <!-- texts 变量注入（必须放JS前） -->
+    <script>
+        window.texts = {{ texts | tojson }};
+        window.categoryDict = {
+            "top": "{{ texts.get('category_top','상의') }}",
+            "pants": "{{ texts.get('category_pants','하의') }}",
+            "dress": "{{ texts.get('category_dress','원피스') }}",
+            "outer": "{{ texts.get('category_outer','아우터') }}",
+            "shoes": "{{ texts.get('category_shoes','신발') }}",
+            "bag": "{{ texts.get('category_bag','가방') }}",
+            "other": "{{ texts.get('category_other','기타') }}"
+        };
+        /* === 关键：把每个 .card-body-scroll 高度拉到视口底部 === */
+        function fitScrollableHeights(){
+            const bottomPadding = 24; // 页面底部留白，可按需微调
+            document.querySelectorAll('.card-body-scroll').forEach(el=>{
+                const top = el.getBoundingClientRect().top;
+                const h = Math.max(220, window.innerHeight - top - bottomPadding);
+                el.style.height = h + 'px';
+            });
+        }
+        window.addEventListener('load', fitScrollableHeights);
+        window.addEventListener('resize', fitScrollableHeights);
+        window.addEventListener('orientationchange', fitScrollableHeights);
+        // 如果你的页面会通过 toast / 语言面板等导致布局突变，也可以在 MutationObserver 里重算：
+        setTimeout(fitScrollableHeights, 50);
+    </script>
+    <!-- 顶部导航（极致紧凑） -->
+    <header class="d-flex justify-content-center header-bar mb-2 border-bottom">
+        <ul class="nav nav-pills gap-1">
+            <li class="nav-item"><a href="/" class="nav-link active" aria-current="page">{{ texts['title'] }}</a></li>
+            <li class="nav-item"><a href="/manage" class="nav-link">{{ texts['manage'] }}</a></li>
+            <li class="nav-item"><a href="/sales" class="nav-link">{{ texts['sales'] }}</a></li>
+            <li class="nav-item"><a href="/stocklog" class="nav-link">{{ texts['stocklog'] }}</a></li>
+            <li class="nav-item"><a href="/settings" class="nav-link">{{ texts['setting'] }}</a></li>
+        </ul>
+    </header>
+    <main>
+        <!-- 顶部过滤栏 -->
+        <div class="top-filter-bar d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+            <div class="flex-grow-1">
+                <label for="scannerInput" class="fw-bold text-secondary mb-1">{{ texts.get('barcode_input', '바코드/수동 입력:') }}</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                    <input id="scannerInput" type="text" class="form-control form-control-lg" autofocus autocomplete="off" placeholder="{{ texts.get('barcode_placeholder', '바코드를 스캔하거나 직접 입력하세요') }}">
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <div>
+                    <label class="fw-bold text-secondary mb-1">{{ texts['sort'] }}</label>
+                    <div class="d-flex gap-2">
+                        <button class="btn sort-btn" onclick="sortChange('default')" id="sort-btn-default">{{ texts['sort_default'] }}</button>
+                        <button class="btn sort-btn" onclick="sortChange('price_asc')" id="sort-btn-asc">{{ texts['sort_price_asc'] }}</button>
+                        <button class="btn sort-btn" onclick="sortChange('price_desc')" id="sort-btn-desc">{{ texts['sort_price_desc'] }}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 主区 -->
+        <div class="row g-4">
+            <div class="col-lg-5">
+                <div class="card">
+                    <div class="card-body card-body-scroll d-flex flex-column">
+                        <div class="input-group mb-3">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input class="form-control" type="text" id="searchInput" placeholder="{{ texts.get('search_placeholder', '바코드 또는 상품명 입력') }}" oninput="scheduleSearch()" autocomplete="off">
+                        </div>
+                        <div id="searchResult" class="list-group list-group-flush">
+                            <div class="text-center text-muted py-5">
+                                <i class="bi bi-search" style="font-size: 3rem;"></i>
+                                <p>{{ texts.get('search_tip', '바코드 스캔, 직접 입력, 상품名 검색 가능') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-7">
+                <div class="card">
+                    <div class="card-body card-body-scroll d-flex flex-column">
+                        <h4 id="cart-title" class="mb-3"><i class="bi bi-cart-fill me-2"></i>{{ texts.get('cart', '장바구니') }}</h4>
+                        <div class="table-responsive flex-grow-1" style="min-height: 110px;">
+                            <table class="table cart-table align-middle" id="cartTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>{{ texts['product'] }}</th>
+                                        <th class="text-center">{{ texts['qty'] }}</th>
+                                        <th class="text-end">{{ texts['price'] }}</th>
+                                        <th class="text-end">{{ texts['subtotal'] }}</th>
+                                        <th class="text-center">{{ texts.get('action', '작업') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cartBody"></tbody>
+                            </table>
+                        </div>
+                        <!-- 结算区横排紧凑美观 -->
+                        <div class="checkout-flex mt-2 mb-1">
+                            <div class="checkout-selectors gap-3">
+                                <div>
+                                    <label for="priceTypeSelect" class="fw-bold text-secondary me-1">{{ texts['choose_price_type'] }}</label>
+                                    <select id="priceTypeSelect" class="form-select d-inline-block" style="width:auto;min-width:112px;" onchange="updatePriceType()">
+                                        <option value="retail">{{ texts['retail'] if texts.get('retail') else '零售价' }}</option>
+                                        <option value="wholesale" selected>{{ texts['wholesale_price'] if texts.get('wholesale_price') else '批发价' }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="fw-bold text-secondary me-1">{{ texts.get('pay_type', '결제 방식') }}</label>
+                                    <div class="btn-group" role="group" aria-label="paytype">
+                                        <button type="button" class="btn btn-outline-success" id="pay-cash" onclick="setPayType('cash')">{{ texts.get('cash', '현금') }}</button>
+                                        <button type="button" class="btn btn-outline-primary" id="pay-card" onclick="setPayType('card')">{{ texts.get('card', '카드') }}</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <h6 class="fw-bold text-secondary mb-1" id="tfoot-sum" style="font-size:1.07rem;">{{ texts.get('total', '합계:') }}</h6>
+                                <h4 class="mb-0 fw-bold text-primary" id="totalPrice" style="font-size:1.48rem;">₩0.00</h4>
+                                <div id="vatRow" class="vat-row-box" style="display:none;"></div>
+                                <div id="vatNotice" class="vat-notice-box" style="display:none;">VAT 별도 / VAT not included / 不含增值税</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary w-100 mt-2" id="checkout-btn" onclick="checkout()">
+                            <i class="bi bi-check-circle-fill me-2"></i>{{ texts.get('checkout', '결제') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="msg" class="toast-container"></div>
+    </main>
+    <script>
+        /* ===== 金额格式化统一 ===== */
+        function money(n){
+            const v = Number(n||0);
+            return v.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+        }
+
+        let cart = {}, allData = { onsale: [], discontinued: [] }, allProducts = [];
+        let currSort = 'default', currPriceType = 'wholesale';
+        let currPayType = 'cash';
+
+        // 本地化类别辅助函数
+        function getCategoryName(cat) {
+            return window.categoryDict?.[cat] || cat || '';
+        }
+
+        // 设置支付方式
+        function setPayType(type) {
+            currPayType = type;
+            document.getElementById('pay-cash').classList.toggle('active', type==='cash');
+            document.getElementById('pay-card').classList.toggle('active', type==='card');
+            updateTotalAndVat();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('sort-btn-default').classList.add('active');
+            setPayType('cash');
+            document.getElementById('priceTypeSelect').value = 'wholesale';
+            updatePriceType();
+            preloadProducts();
+            document.getElementById('scannerInput').focus();
+            fitScrollableHeights();
+        });
+
+        document.getElementById('scannerInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const barcode = e.target.value.trim();
+                e.target.value = '';
+                if (barcode) addToCart(barcode);
+                setTimeout(() => e.target.focus(), 0);
+            }
+        });
+
+        document.body.addEventListener('keydown', function(e){
+            if(e.key === 'Enter' && document.activeElement.id !== 'scannerInput' && document.activeElement.id !== 'searchInput'){
+                checkout();
+            }
+        });
+
+        document.body.addEventListener('click', function(e){
+            const noFocusElements = ['INPUT', 'BUTTON', 'SELECT', 'A', 'TEXTAREA'];
+            if (!noFocusElements.includes(e.target.tagName) && !e.target.closest('button'))
+                document.getElementById('scannerInput').focus();
+        });
+        document.getElementById('searchInput').addEventListener('blur', function(){
+            setTimeout(()=>document.getElementById('scannerInput').focus(), 100);
+        });
+
+        // ✅ Toast：若 bootstrap.Toast 不在，降级 alert
+        function showMessage(message, type = 'success') {
+            if (!(window.bootstrap && bootstrap.Toast)) {
+                if (type === 'danger') { alert(message); }
+                return;
+            }
+            const msgContainer = document.getElementById('msg');
+            const cls = (type === 'info') ? 'toast-gray-light' : 'toast-gray-dark';
+            const icon = (type === 'danger') ? 'bi-x-circle-fill' : (type === 'info' ? 'bi-info-circle-fill' : 'bi-check-circle-fill');
+            const delay = (type === 'danger') ? 5000 : 2500;
+
+            const toastEl = document.createElement('div');
+            toastEl.className = `toast ${cls} border-0`;
+            toastEl.setAttribute('role', 'alert');
+            toastEl.setAttribute('aria-live', 'assertive');
+            toastEl.setAttribute('aria-atomic', 'true');
+            toastEl.dataset.bsAutohide = 'true';
+            toastEl.dataset.bsDelay = String(delay);
+
+            toastEl.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="toast-body">
+                        <i class="bi ${icon} me-2"></i>${message}
+                    </div>
+                    <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            `;
+
+            msgContainer.appendChild(toastEl);
+            const toast = new bootstrap.Toast(toastEl);
+            toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+            toast.show();
+        }
+
+        function sortChange(type) {
+            currSort = type;
+            document.querySelectorAll('.sort-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`sort-btn-${type}`).classList.add('active');
+            reloadProducts();
+        }
+
+        function updatePriceType() {
+            currPriceType = document.getElementById('priceTypeSelect').value;
+            Object.keys(cart).forEach(barcode => {
+                const product = allProducts.find(p => p.barcode === barcode);
+                if (product) {
+                    const price = (currPriceType === 'wholesale')
+                        ? (Number(product.wholesale_price ?? product.price ?? 0))
+                        : (Number(product.price ?? product.wholesale_price ?? 0));
+                    cart[barcode].price = price;
+                    cart[barcode].price_type = currPriceType;
+                }
+            });
+            updateCartUI();
+            scheduleSearch();
+        }
+
+        async function preloadProducts() {
+            try {
+                const resp = await fetch(`/api/items?sort=${currSort}`);
+                if (!resp.ok) throw new Error('Network error');
+                allData = await resp.json();
+                reloadProducts();
+            } catch (error) {
+                showMessage(window.texts['no_product'] || "관련 상품 없음", 'danger');
+            }
+        }
+
+        function reloadProducts() {
+            allProducts = [...(allData.onsale||[]), ...(allData.discontinued||[])];
+            if(currSort === 'price_asc') allProducts.sort((a,b)=>Number(a.price||0)-Number(b.price||0));
+            else if(currSort === 'price_desc') allProducts.sort((a,b)=>Number(b.price||0)-Number(a.price||0));
+            scheduleSearch();
+        }
+
+        /* ===== 搜索防抖 ===== */
+        let searchTimer = null;
+        function scheduleSearch(){
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(searchProduct, 120);
+        }
+
+        // 重点：搜索结果展示批发+零售价（含空值兜底）
+        function searchProduct() {
+            const kwRaw = document.getElementById('searchInput').value;
+            const kw = String(kwRaw||'').trim().toLowerCase();
+            const div = document.getElementById('searchResult');
+            div.innerHTML = '';
+            if (!kw) {
+                div.innerHTML = `<div class="text-center text-muted py-5">
+                                <i class="bi bi-search" style="font-size: 3rem;"></i>
+                                <p>${window.texts['search_tip'] || '바코드 스캔, 직접 입력, 상품명 검색 가능'}</p>
+                           </div>`;
+                return;
+            }
+            const matched = allProducts.filter(p => {
+                const bc = String(p.barcode||'').toLowerCase();
+                const nm = String(p.name||'').toLowerCase();
+                return bc.includes(kw) || nm.includes(kw);
+            });
+            if (matched.length === 0) {
+                div.innerHTML = `<div class="list-group-item text-muted">${window.texts["no_product"] || "관련 상품 없음"}</div>`;
+                return;
+            }
+            div.innerHTML = matched.slice(0, 20).map(p => {
+                const wholesale = Number(p.wholesale_price ?? p.price ?? 0);
+                const retail = Number(p.price ?? p.wholesale_price ?? 0);
+                const categoryLabel = getCategoryName(p.category);
+                const outOfStock = (Number(p.qty||0) <= 0 || p.status === '절판');
+                return `
+                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center search-result-item${outOfStock ? ' out-of-stock' : ''}" 
+                     onclick="addToCart('${String(p.barcode)}')" title="${outOfStock ? (window.texts["sold_out"] || "售罄") : ''}">
+                    <div>
+                        <div class="fw-bold">${p.name||''}
+                            ${p.size ? `<span class="ms-1 text-secondary small">(${p.size})</span>` : ''}
+                            ${categoryLabel ? `<span class="category-tag">${categoryLabel}</span>` : ''}
+                        </div>
+                        <small class="text-muted">[${p.barcode||''}] | ${window.texts['stock'] || '재고'}: ${Number(p.qty||0)}</small>
+                        <div class="product-prices mt-1">
+                            <span class="fw-bold text-dark">₩${money(wholesale)}</span>
+                            <span class="badge badge-wholesale ms-1">${window.texts["wholesale_price"] || "도매가"}</span>
+                            <span class="fw-bold text-dark ms-3">₩${money(retail)}</span>
+                            <span class="badge badge-retail ms-1">${window.texts["retail"] || "소매가"}</span>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        async function addToCart(barcode) {
+            try {
+                const resp = await fetch('/api/item/' + barcode);
+                if (!resp.ok) throw new Error(`Item ${barcode} not found.`);
+                const item = await resp.json();
+                const stockQty = Number(item.qty||0);
+                const isDiscontinued = (item.status === '절판');
+
+                if (isDiscontinued || stockQty <= 0) {
+                    showMessage(`[${item.name}] ${(window.texts["sold_out"] || "절판 상품입니다.")}`, 'danger');
+                    return;
+                }
+                if ((cart[barcode]?.qty || 0) >= stockQty) {
+                    showMessage(`[${item.name}] ${(window.texts["exceed_stock"] || "재고를 초과할 수 없습니다.")}`, 'danger');
+                    return;
+                }
+                const price = (currPriceType === 'wholesale')
+                    ? Number(item.wholesale_price ?? item.price ?? 0)
+                    : Number(item.price ?? item.wholesale_price ?? 0);
+
+                if (cart[barcode]) {
+                    cart[barcode].qty += 1;
+                    cart[barcode].price = price;
+                    cart[barcode].price_type = currPriceType;
+                } else {
+                    cart[barcode] = {
+                        name: item.name||'', price: price, qty: 1, price_type: currPriceType,
+                        size: item.size, category: item.category, stock: stockQty
+                    };
+                }
+                updateCartUI();
+                showMessage(`${window.texts["added"] || "추가됨"}: ${item.name}`, 'success');
+            } catch (error) {
+                showMessage(`${window.texts["no_product"] || "관련 상품 없음"}: ${barcode}`, 'danger');
+            }
+        }
+
+        function updateCartUI() {
+            const tbody = document.getElementById('cartBody');
+            tbody.innerHTML = '';
+            let total = 0;
+            const keys = Object.keys(cart);
+            if (keys.length === 0) {
+                 tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted p-5">${window.texts["empty_cart"] || "장바구니가 비었습니다!"}</td></tr>`;
+                 document.getElementById('totalPrice').innerText = '₩0.00';
+                 document.getElementById('vatRow').style.display = "none";
+                 document.getElementById('vatNotice').style.display = "none";
+                 return;
+            }
+            keys.forEach((barcode) => {
+                const item = cart[barcode];
+                const subtotal = Number(item.qty||0) * Number(item.price||0);
+                total += subtotal;
+                const priceTypeBadge = item.price_type === 'wholesale'
+                    ? `<span class="badge badge-wholesale ms-1">${window.texts["wholesale_price"] || "도매가"}</span>`
+                    : `<span class="badge badge-retail ms-1">${window.texts["retail"] || "소매가"}</span>`;
+                tbody.innerHTML += `
+                <tr>
+                    <td>
+                        <div class="fw-bold">${item.name||''}</div>
+                        <small class="text-muted">[${barcode}] ${getCategoryName(item.category)||'-'}/${item.size||'-'}</small>
+                    </td>
+                    <td class="text-center">
+                         <div class="input-group input-group-sm qty-input-group mx-auto">
+                            <button class="btn btn-outline-secondary" type="button" onclick="changeQty('${barcode}', -1)">-</button>
+                            <input type="number" class="form-control text-center" value="${item.qty}" min="1" max="${item.stock}" onchange="inputQty('${barcode}', this.value)">
+                            <button class="btn btn-outline-secondary" type="button" onclick="changeQty('${barcode}', 1)">+</button>
+                        </div>
+                    </td>
+                    <td class="text-end">₩${money(item.price)}${priceTypeBadge}</td>
+                    <td class="text-end fw-bold">₩${money(subtotal)}</td>
+                    <td class="text-center">
+                        <i class="bi bi-trash-fill del-btn" onclick="removeFromCart('${barcode}')" title="${window.texts['remove'] || '제거'}"></i>
+                    </td>
+                </tr>`;
+            });
+            updateTotalAndVat(total);
+        }
+
+        function updateTotalAndVat(manualTotal) {
+            let total = (typeof manualTotal === 'number') ? manualTotal
+                       : Object.values(cart).reduce((sum, item) => sum + Number(item.qty||0) * Number(item.price||0), 0);
+            let vatRow = document.getElementById('vatRow');
+            let vatNotice = document.getElementById('vatNotice');
+            if (currPayType === 'card') {
+                let vat = +(total * 0.10);
+                let totalWithVat = +(total + vat);
+                vatRow.innerHTML = `<span style="color:#555;">부가가치세(VAT 10%):</span> ₩${money(vat)}`;
+                vatRow.style.display = "block";
+                document.getElementById('totalPrice').innerText = '₩' + money(totalWithVat);
+                vatNotice.style.display = "none";
+            } else {
+                vatRow.style.display = "none";
+                document.getElementById('totalPrice').innerText = '₩' + money(total);
+                vatNotice.style.display = "block";
+            }
+        }
+
+        function changeQty(barcode, delta) {
+            if (!cart[barcode]) return;
+            let newQty = Number(cart[barcode].qty||0) + Number(delta||0);
+            if (newQty < 1) newQty = 1;
+            if (newQty > Number(cart[barcode].stock||0)) {
+                newQty = Number(cart[barcode].stock||0);
+                showMessage(`${window.texts["exceed_stock"] || "재고를 초과할 수 없습니다."}`, 'danger');
+            }
+            cart[barcode].qty = newQty;
+            updateCartUI();
+        }
+
+        function inputQty(barcode, value) {
+            if (!cart[barcode]) return;
+            let qty = parseInt(value, 10);
+            if (isNaN(qty) || qty < 1) qty = 1;
+            if (qty > Number(cart[barcode].stock||0)) {
+                qty = Number(cart[barcode].stock||0);
+                showMessage(`${window.texts["exceed_stock"] || "재고를 초과할 수 없습니다."}`, 'danger');
+            }
+            cart[barcode].qty = qty;
+            updateCartUI();
+        }
+
+        function removeFromCart(barcode) {
+            if (!cart[barcode]) return;
+            delete cart[barcode];
+            updateCartUI();
+        }
+
+        async function checkout() {
+            if (Object.keys(cart).length === 0) {
+                showMessage(`${window.texts["empty_cart"] || "장바구니가 비었습니다!"}`, 'danger');
+                return;
+            }
+            let subtotal = Object.values(cart).reduce((sum, item) => sum + Number(item.qty||0) * Number(item.price||0), 0);
+            let send_total = Math.round(subtotal);
+            let send_paytype = currPayType;
+            try {
+                const response = await fetch('/api/sale', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({cart, total: send_total, pay_type: send_paytype})
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.msg || '결제 처리 중 오류가 발생했습니다.');
+                showMessage(`${window.texts["sale_ok"] || "결제 완료!"} 판매가 기록되었습니다.`, 'success');
+                printReceipt(data.sale_id);
+                cart = {};
+                updateCartUI();
+                preloadProducts();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        async function printReceipt(sale_id) {
+            showMessage(`${window.texts["printing"] || "영수증 출력 중..."}`, 'info');
+            try {
+                const response = await fetch(`/api/print_receipt/${sale_id}`, {method: 'POST'});
+                const data = await response.json();
+                if (data.msg === 'ok') {
+                    showMessage(window.texts["print_ok"] || "영수증이 프린터로 전송되었습니다", 'success');
+                } else {
+                    throw new Error(data.msg);
+                }
+            } catch(error) {
+                showMessage(`${window.texts["print_fail"] || "출력 실패: "}` + error.message, 'danger');
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

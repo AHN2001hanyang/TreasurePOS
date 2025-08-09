@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ texts['manage'] }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <style>
+        body { background: #f6f8fa; }
+        .table { background: #fff; }
+        .import-form input[type="file"] { width: auto; display: inline-block; }
+        .import-form button { margin-left: 8px; }
+        .import-tip { font-size: 13px; color: #666; margin-left: 16px;}
+        .product-img { width: 54px; height: 54px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
+        .status-badge { font-size: 13px; padding: 2px 8px; border-radius: 10px; }
+        .badge-soldout { background: #ffdfdf; color: #d13c3c; }
+        .badge-discontinued { background: #e1e1e1; color: #888; }
+        .badge-onsale { background: #e6f6e1; color: #208c38; }
+        .modal-bg { position: fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.16); z-index:1050; display:none;}
+        .sale-record-table th, .sale-record-table td { font-size:14px; }
+        .sort-btn {margin-left: 10px;}
+        .sort-btn.active { font-weight: bold; color: #2271d1;}
+        .category-title {font-size: 1.05em; color: #196bcb; background: #f0f7fa; border-left: 5px solid #2271d1; margin-top:24px; margin-bottom:8px; padding: 2px 10px;}
+        /* 与 index.html 同风格的紧凑导航 */
+        header { margin-bottom: 0.6rem !important; }
+        .nav-pills .nav-link { font-weight: 600; padding: 0.42em 1.18em; border-radius: 10px; }
+    </style>
+</head>
+<body class="container py-4">
+    <!-- 顶部导航：与 index.html 一致（无语言切换） -->
+    <header class="d-flex justify-content-center header-bar mb-2 border-bottom">
+        <ul class="nav nav-pills gap-1">
+            <li class="nav-item"><a href="/" class="nav-link">{{ texts['title'] }}</a></li>
+            <li class="nav-item"><a href="/manage" class="nav-link active" aria-current="page">{{ texts['manage'] }}</a></li>
+            <li class="nav-item"><a href="/sales" class="nav-link">{{ texts['sales'] }}</a></li>
+            <li class="nav-item"><a href="/stocklog" class="nav-link">{{ texts.get('stocklog','입출고 관리') }}</a></li>
+            <li class="nav-item"><a href="/settings" class="nav-link">{{ texts.get('setting','설정') }}</a></li>
+        </ul>
+    </header>
+
+    <h2 class="mb-4">{{ texts['manage'] }}</h2>
+
+    <!-- Excel 导入导出 -->
+    <div class="mb-3 d-flex align-items-center">
+      <a href="/export/items" class="btn btn-outline-primary me-3" target="_blank">{{ texts['export'] }}</a>
+      <form class="import-form" id="importForm" action="/import/items" method="post" enctype="multipart/form-data" style="display:inline;">
+        <input type="file" name="file" accept=".xls,.xlsx" required>
+        <button class="btn btn-outline-success" type="submit">{{ texts['import'] }}</button>
+      </form>
+      <span class="import-tip">{{ texts['import_tip'] }}</span>
+    </div>
+
+    <div class="mb-2">
+        <span>{{ texts['sort'] }}</span>
+        <button class="btn btn-link sort-btn" id="sort-default" onclick="setSort('default')">{{ texts['sort_default'] }}</button>
+        <button class="btn btn-link sort-btn" id="sort-asc" onclick="setSort('asc')">{{ texts['sort_price_asc'] }}</button>
+        <button class="btn btn-link sort-btn" id="sort-desc" onclick="setSort('desc')">{{ texts['sort_price_desc'] }}</button>
+    </div>
+    <button class="btn btn-success mb-2" onclick="showAddForm()">{{ texts['add'] }}</button>
+    
+    <div id="onsaleSection"></div>
+    <div id="discontinuedSection"></div>
+
+    <!-- 商品编辑/新增模态框（简单原生 modal） -->
+    <div class="modal" tabindex="-1" id="editModal">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form id="editForm" onsubmit="saveItem(event)" enctype="multipart/form-data">
+            <div class="modal-header">
+              <h5 class="modal-title" id="modalTitle">{{ texts['add'] }}</h5>
+              <button type="button" class="btn-close" onclick="closeModal()"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                  <label>{{ texts['barcode'] if texts.get('barcode') else 'Barcode' }}</label>
+                  <input type="text" class="form-control" id="barcodeInput" required>
+                </div>
+                <div class="mb-2">
+                  <label>{{ texts['product'] }}</label>
+                  <input type="text" class="form-control" id="nameInput" required>
+                </div>
+                <div class="mb-2">
+                  <label>{{ texts['price'] }}</label>
+                  <input type="number" class="form-control" id="priceInput" required min="0" step="0.01">
+                </div>
+                <div class="mb-2">
+                  <label>{{ texts['wholesale_price'] }}</label>
+                  <input type="number" class="form-control" id="wholesalePriceInput" required min="0" step="0.01">
+                </div>
+                <div class="mb-2">
+                  <label>{{ texts['qty'] }}</label>
+                  <input type="number" class="form-control" id="qtyInput" required>
+                </div>
+                <div class="mb-2">
+                  <label>{{ texts['category'] }}</label>
+                  <select class="form-select" id="categoryInput" required>
+                    <option value="bag">{{ texts['category_bag'] }}</option>
+                    <option value="top">{{ texts['category_top'] }}</option>
+                    <option value="bottom">{{ texts['category_bottom'] }}</option>
+                    <option value="shoes">{{ texts['category_shoes'] }}</option>
+                  </select>
+                </div>
+                <div class="mb-2">
+                  <label>{{ texts['size'] }}</label>
+                  <select class="form-select" id="sizeInput" required>
+                    <option value="FREE">{{ texts['size_free'] }}</option>
+                    <option value="S">S</option>
+                    <option value="M">M</option>
+                    <option value="L">L</option>
+                    <option value="XL">XL</option>
+                  </select>
+                </div>
+                <div class="mb-2">
+                  <label>{{ texts['image'] }}</label>
+                  <input type="file" class="form-control" id="imgInput" accept="image/*">
+                  <img id="imgPreview" src="" alt="" style="display:none;max-width:90px;margin-top:5px;border-radius:8px;">
+                </div>
+                <div class="mb-2">
+                  <label>{{ texts['status'] }}</label>
+                  <select class="form-select" id="statusInput">
+                    <option value="정상">{{ texts['normal'] }}</option>
+                    <option value="매진">{{ texts['soldout'] }}</option>
+                    <option value="절판">{{ texts['discontinued'] }}</option>
+                  </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-primary" type="submit">{{ texts['save'] }}</button>
+              <button class="btn btn-secondary" type="button" onclick="closeModal()">{{ texts['cancel'] }}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- 绝版商品销售记录弹窗 -->
+    <div class="modal-bg" id="saleRecordsBg" onclick="closeSaleRecords()"></div>
+    <div class="modal" tabindex="-1" id="saleRecordsModal" style="z-index:2000;">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">{{ texts['sale_records'] }}</h5>
+            <button type="button" class="btn-close" onclick="closeSaleRecords()"></button>
+          </div>
+          <div class="modal-body" id="saleRecordsBody">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+        // 文案与映射
+        const TEXTS = {{ texts|tojson }};
+        const CATEGORY_CODE = ['bag', 'top', 'bottom', 'shoes'];
+        const SIZE_CODE = ['FREE', 'S', 'M', 'L', 'XL'];
+        const CATEGORY_TEXT = {
+            bag: TEXTS['category_bag'],
+            top: TEXTS['category_top'],
+            bottom: TEXTS['category_bottom'],
+            shoes: TEXTS['category_shoes']
+        };
+
+        let editingBarcode = null;
+        let editingImageUrl = '';
+        let currentSort = 'default';
+
+        function setSort(type) {
+            currentSort = type;
+            document.querySelectorAll('.sort-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('sort-' + (type === 'default' ? 'default' : (type === 'asc' ? 'asc' : 'desc')))?.classList.add('active');
+            loadItems();
+        }
+
+        function groupBy(arr, key) {
+            const map = {};
+            (arr||[]).forEach(item => {
+                const k = item?.[key] || '-';
+                if (!map[k]) map[k] = [];
+                map[k].push(item);
+            });
+            return map;
+        }
+
+        async function loadItems() {
+            try {
+                const res = await fetch('/api/items');
+                if (!res.ok) throw new Error('Network');
+                const data = await res.json();
+                const onsaleGroup = groupBy(data.onsale, 'category');
+                const discontinuedGroup = groupBy(data.discontinued, 'category');
+
+                // 排序（更稳：空值按 0 处理）
+                for (const cat in onsaleGroup) {
+                    onsaleGroup[cat].sort((a,b)=>{
+                        if (currentSort === 'asc') return Number(a.price||0) - Number(b.price||0);
+                        if (currentSort === 'desc') return Number(b.price||0) - Number(a.price||0);
+                        return 0;
+                    });
+                }
+                for (const cat in discontinuedGroup) {
+                    discontinuedGroup[cat].sort((a,b)=>{
+                        if (currentSort === 'asc') return Number(a.price||0) - Number(b.price||0);
+                        if (currentSort === 'desc') return Number(b.price||0) - Number(a.price||0);
+                        return 0;
+                    });
+                }
+
+                // 在售
+                let onsaleHtml = `<h5 class="mt-4 mb-2" style="color:#257c37;">${TEXTS['manage']} - ${TEXTS['onsale']}</h5>`;
+                Object.keys(onsaleGroup).forEach(cat => {
+                    onsaleHtml += renderTableForCategory(onsaleGroup[cat], cat, false);
+                });
+                document.getElementById('onsaleSection').innerHTML = onsaleHtml;
+
+                // 绝版
+                let disHtml = `<h5 class="mt-4 mb-2" style="color:#888;">${TEXTS['manage']} - ${TEXTS['discontinued']}</h5>`;
+                Object.keys(discontinuedGroup).forEach(cat => {
+                    disHtml += renderTableForCategory(discontinuedGroup[cat], cat, true);
+                });
+                document.getElementById('discontinuedSection').innerHTML = disHtml;
+            } catch (e) {
+                document.getElementById('onsaleSection').innerHTML = `<div class="text-danger">Load failed</div>`;
+                document.getElementById('discontinuedSection').innerHTML = '';
+            }
+        }
+
+        function renderTableForCategory(list, cat, isDiscontinued) {
+            let html = `<div class="category-title">${CATEGORY_TEXT[cat] || cat}</div>
+                        <table class="table table-bordered align-middle">
+                          <thead>
+                            <tr>
+                              <th style="width:70px;">${TEXTS['image']}</th>
+                              <th>${TEXTS['barcode']}</th>
+                              <th>${TEXTS['product']}</th>
+                              <th>${TEXTS['price']}</th>
+                              <th>${TEXTS['wholesale_price']}</th>
+                              <th>${TEXTS['qty']}</th>
+                              <th>${TEXTS['size']}</th>
+                              <th>${TEXTS['status']}</th>
+                              ${isDiscontinued ? `<th>${TEXTS['discontinued_time']}</th>` : ''}
+                              <th>${TEXTS['action']}</th>
+                            </tr>
+                          </thead>
+                          <tbody>`;
+            list.forEach(item => {
+                const statusTxt = isDiscontinued
+                    ? `<span class="status-badge badge-discontinued">${TEXTS["discontinued"]}</span>`
+                    : ((item.status === '매진' || Number(item.qty||0) === 0)
+                        ? `<span class="status-badge badge-soldout">${TEXTS["soldout"]}</span>`
+                        : `<span class="status-badge badge-onsale">${TEXTS["normal"]}</span>`);
+                const imgCell = item.image ? `<img src="/static/${item.image}" class="product-img">` : '';
+                const bcEnc = encodeURIComponent(String(item.barcode||''));
+                html += `
+                <tr>
+                  <td>${imgCell}</td>
+                  <td>${item.barcode||''}</td>
+                  <td>${item.name||''}</td>
+                  <td>${item.price ?? '-'}</td>
+                  <td>${item.wholesale_price ?? '-'}</td>
+                  <td>${item.qty ?? '-'}</td>
+                  <td>${item.size || '-'}</td>
+                  <td>${statusTxt}</td>
+                  ${isDiscontinued ? `<td>${item.discontinued_time || '-'}</td>` : ''}
+                  <td class="text-nowrap">
+                    <button class="btn btn-sm btn-warning" onclick="openEditByBarcode('${bcEnc}')">${TEXTS['edit']}</button>
+                    <button class="btn btn-sm btn-danger" onclick="delItem('${bcEnc}')">${TEXTS['delete']}</button>
+                    ${isDiscontinued ? `
+                      <button class="btn btn-sm btn-info" onclick="showSaleRecordsByBarcode('${bcEnc}')">${TEXTS['sale_records']}</button>
+                      <button class="btn btn-sm btn-success" onclick="restoreItem('${bcEnc}')">${TEXTS['restore']}</button>` : ''
+                    }
+                  </td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+            return html;
+        }
+
+        // —— 安全：通过条码再次查询，避免内联字符串注入问题 ——
+        async function openEditByBarcode(bcEnc) {
+            const barcode = decodeURIComponent(bcEnc);
+            try {
+                const res = await fetch('/api/item/' + encodeURIComponent(barcode));
+                if (!res.ok) throw new Error('404');
+                const item = await res.json();
+                showEditForm(
+                    item.barcode, item.name, item.price, item.wholesale_price,
+                    item.qty, item.category, item.size, item.image, item.status
+                );
+            } catch (e) {
+                alert('Item not found');
+            }
+        }
+
+        async function showSaleRecordsByBarcode(bcEnc) {
+            const barcode = decodeURIComponent(bcEnc);
+            try {
+                const res = await fetch('/api/item/' + encodeURIComponent(barcode));
+                const item = res.ok ? await res.json() : {name: barcode};
+                showSaleRecords(barcode, item.name || barcode);
+            } catch {
+                showSaleRecords(barcode, barcode);
+            }
+        }
+
+        function restoreItem(bcEnc) {
+            const barcode = decodeURIComponent(bcEnc);
+            if (!confirm(TEXTS['restore'] + " ?")) return;
+            fetch('/api/item_restore/' + encodeURIComponent(barcode), { method: 'POST' })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) loadItems();
+                else alert(TEXTS['print_fail'] || 'Failed');
+            }).catch(()=>alert('Network error'));
+        }
+
+        function showAddForm() {
+            editingBarcode = null;
+            editingImageUrl = '';
+            document.getElementById('modalTitle').innerText = TEXTS["add"];
+            document.getElementById('barcodeInput').value = '';
+            document.getElementById('barcodeInput').disabled = false;
+            document.getElementById('nameInput').value = '';
+            document.getElementById('priceInput').value = '';
+            document.getElementById('wholesalePriceInput').value = '';
+            document.getElementById('qtyInput').value = '';
+            document.getElementById('categoryInput').value = 'bag';
+            document.getElementById('sizeInput').value = 'FREE';
+            document.getElementById('imgInput').value = '';
+            document.getElementById('imgPreview').style.display = 'none';
+            document.getElementById('statusInput').value = '정상';
+            document.getElementById('editModal').style.display = 'block';
+        }
+
+        function showEditForm(barcode, name, price, wholesale_price, qty, category, size, image, status) {
+            editingBarcode = barcode;
+            editingImageUrl = image || '';
+            document.getElementById('modalTitle').innerText = TEXTS["edit"];
+            document.getElementById('barcodeInput').value = barcode;
+            document.getElementById('barcodeInput').disabled = true;
+            document.getElementById('nameInput').value = name || '';
+            document.getElementById('priceInput').value = price ?? '';
+            document.getElementById('wholesalePriceInput').value = wholesale_price ?? '';
+            document.getElementById('qtyInput').value = qty ?? 0;
+            document.getElementById('categoryInput').value = category || 'bag';
+            document.getElementById('sizeInput').value = size || 'FREE';
+            document.getElementById('statusInput').value = status || '정상';
+            if(image) {
+                document.getElementById('imgPreview').src = '/static/' + image;
+                document.getElementById('imgPreview').style.display = 'block';
+            } else {
+                document.getElementById('imgPreview').style.display = 'none';
+            }
+            document.getElementById('imgInput').value = '';
+            document.getElementById('editModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        document.getElementById('imgInput').addEventListener('change', function(e){
+            const file = e.target.files?.[0];
+            if(file) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    document.getElementById('imgPreview').src = ev.target.result;
+                    document.getElementById('imgPreview').style.display = 'block';
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function saveItem(event) {
+            event.preventDefault();
+            const barcode = document.getElementById('barcodeInput').value.trim();
+            const name = document.getElementById('nameInput').value.trim();
+            const price = document.getElementById('priceInput').value;
+            const wholesale_price = document.getElementById('wholesalePriceInput').value;
+            const qty = document.getElementById('qtyInput').value;
+            const category = document.getElementById('categoryInput').value;
+            const size = document.getElementById('sizeInput').value;
+            const status = document.getElementById('statusInput').value;
+            const imgFile = document.getElementById('imgInput').files[0];
+
+            if (!barcode || !name) { alert('Barcode/Name required'); return; }
+
+            const formData = new FormData();
+            formData.append('barcode', barcode);
+            formData.append('name', name);
+            formData.append('price', price);
+            formData.append('wholesale_price', wholesale_price);
+            formData.append('qty', qty);
+            formData.append('category', category);
+            formData.append('size', size);
+            formData.append('status', status);
+
+            if(imgFile) {
+                formData.append('image', imgFile);
+            } else if(editingImageUrl) {
+                formData.append('image_old', editingImageUrl);
+            }
+
+            const method = editingBarcode ? 'PUT' : 'POST';
+            const url = editingBarcode ? '/api/item/' + encodeURIComponent(barcode) : '/api/item';
+
+            fetch(url, { method, body: formData })
+            .then(async res => {
+                const data = await res.json().catch(()=>({}));
+                if (!res.ok) throw new Error(data.msg || 'Error');
+                closeModal();
+                loadItems();
+            })
+            .catch(err => {
+                if (String(err.message).includes('nonnegative')) alert(TEXTS["qty_nonnegative"]);
+                else alert(err.message || 'Save failed');
+            });
+        }
+
+        function delItem(bcEnc) {
+            const barcode = decodeURIComponent(bcEnc);
+            if (!confirm(TEXTS["confirm_delete"])) return;
+            fetch('/api/item/' + encodeURIComponent(barcode), {method: 'DELETE'})
+            .then(res => res.json())
+            .then(_ => loadItems())
+            .catch(()=>alert('Delete failed'));
+        }
+
+        // 绝版商品销售记录
+        function showSaleRecords(barcode, name) {
+            document.getElementById('saleRecordsBg').style.display = 'block';
+            document.getElementById('saleRecordsModal').style.display = 'block';
+            document.getElementById('saleRecordsBody').innerHTML = `<div class="text-muted py-2">${TEXTS["loading"]}</div>`;
+            fetch('/api/item_sales/' + encodeURIComponent(barcode))
+            .then(res => res.json())
+            .then(data => {
+                let html = `<div class="mb-2"><strong>${name}</strong> ${TEXTS["sale_records"]}：</div>`;
+                if(!data || data.length === 0) {
+                    html += `<div class="text-danger py-2">${TEXTS["no_sale_record"]}</div>`;
+                } else {
+                    html += `
+                    <table class="table sale-record-table table-bordered">
+                        <thead><tr>
+                            <th>${TEXTS["sale_id"]}</th>
+                            <th>${TEXTS["date"]}</th>
+                            <th>${TEXTS["qty"]}</th>
+                            <th>${TEXTS["price"]}</th>
+                            <th>${TEXTS["wholesale_price"]}</th>
+                            <th>${TEXTS["size"]}</th>
+                            <th>${TEXTS["category"]}</th>
+                            <th>${TEXTS["total"]}</th>
+                        </tr></thead>
+                        <tbody>
+                    `;
+                    data.forEach(rec => {
+                        html += `<tr>
+                            <td>${rec.sale_id}</td>
+                            <td>${rec.time}</td>
+                            <td>${rec.qty}</td>
+                            <td>${rec.price}</td>
+                            <td>${rec.wholesale_price || '-'}</td>
+                            <td>${rec.size || '-'}</td>
+                            <td>${rec.category || '-'}</td>
+                            <td>${rec.total || rec.subtotal || ''}</td>
+                        </tr>`;
+                    });
+                    html += `</tbody></table>`;
+                }
+                document.getElementById('saleRecordsBody').innerHTML = html;
+            })
+            .catch(()=>document.getElementById('saleRecordsBody').innerHTML = `<div class="text-danger">Load failed</div>`);
+        }
+
+        function closeSaleRecords() {
+            document.getElementById('saleRecordsBg').style.display = 'none';
+            document.getElementById('saleRecordsModal').style.display = 'none';
+        }
+        window.onclick = function(event) {
+            if (event.target === document.getElementById('editModal')) closeModal();
+            if (event.target === document.getElementById('saleRecordsBg')) closeSaleRecords();
+        };
+
+        // 默认加载
+        setSort('default');
+        // 注意：setSort 内部会调用 loadItems，这里无需再次调用
+    </script>
+</body>
+</html>

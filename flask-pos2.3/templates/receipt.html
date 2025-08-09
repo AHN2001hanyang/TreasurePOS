@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ texts['receipt_title'] if texts.get('receipt_title') else '영수증 Receipt' }}</title>
+    <style>
+        /* 固定画布宽度，和 html2image 的 size=(624,*) 对齐；并提供 cm→px 变量 */
+        :root { --paper-w: 624px; --cm: 37.79527559px; }
+
+        html, body {
+            background: #fff !important;
+            color: #000 !important;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', 'Noto Sans KR', 'Noto Sans SC', sans-serif;
+            line-height: 1.55;
+            font-size: 18px;
+        }
+        *, *::before, *::after { box-sizing: inherit; }
+
+        .receipt {
+            width: var(--paper-w);
+            max-width: var(--paper-w);
+            min-width: var(--paper-w);
+            min-height: 360px;
+            margin: 0 auto;
+            background: #fff !important;
+            color: #000 !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            padding: 24px 14px 48px 14px;
+            /* 关键：不裁剪子元素 + 额外底部内边距，配合 3cm 尾空白，防任何情况下被裁掉 */
+            overflow: visible;
+            padding-bottom: calc(3 * var(--cm) + 24px);
+            border: 1px solid #ddd;
+        }
+        .top-blank {
+            width: 100%;
+            height: 80px; /* ≈ 2cm，避免 DPI 引起的 cm 误差 */
+            background: #fff !important;
+            margin: 0;
+            padding: 0;
+        }
+        .logo-container {
+            width: 100%;
+            text-align: center;
+            margin-bottom: 12px;
+            margin-top: 6px;
+            background: #fff !important;
+        }
+        .logo-container img {
+            width: 520px;          /* 控制在画布内，避免过宽 */
+            max-width: 95%;
+            height: auto;
+            min-width: 120px;
+            margin-bottom: 6px;
+            object-fit: contain;
+            background: #fff !important;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 1.2em;
+            color: #000 !important;
+            margin-bottom: 12px;
+            font-weight: 600;
+            letter-spacing: 1.2px;
+            line-height: 1.5;
+        }
+        .meta {
+            color: #000 !important;
+            font-size: 1.05em;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px 0;
+            padding: 0 6px;
+        }
+        .meta span { font-weight: 500; }
+        .meta b { font-weight: 700; }
+
+        hr {
+            border: none;
+            border-top: 1px solid #000 !important; /* 实线更利于转 1-bit */
+            margin: 12px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 1.5em;
+            margin-bottom: 10px;
+            background: #fff !important;
+            color: #000 !important;
+            /* 关键：固定表格布局，避免长内容把列挤乱 */
+            table-layout: fixed;
+        }
+        th, td {
+            border-bottom: 1px solid #000 !important; /* 实线，打印更清晰 */
+            padding: 8px 4px;
+            text-align: left;
+            line-height: 1.4;
+            color: #000 !important;
+            background: #fff !important; /* 去浅灰避免噪点 */
+            /* 关键：长字符串/中韩文混排也能换行，不会撑破或重叠 */
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+        th {
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+        th.amount, td.amount { text-align: right; }
+
+        .footer {
+            text-align: right;
+            margin-top: 8px;
+            font-size: 1.25em;
+            font-weight: 800;
+            color: #000 !important;
+            letter-spacing: 0.6px;
+        }
+        .footer span {
+            color: #000 !important;
+            font-size: 1.3em;
+        }
+        .vat-row {
+            text-align: right;
+            font-size: 1.02em;
+            font-weight: 700;
+            color: #000 !important;
+            margin-top: 10px;
+            margin-bottom: 6px;
+        }
+        .vat-row .vat-label {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #444 !important;
+        }
+        .vat-notice {
+            text-align: right;
+            font-size: 0.95em;
+            color: #555 !important;
+            font-weight: 500;
+            margin-bottom: 6px;
+            margin-top: 6px;
+            letter-spacing: 0.05em;
+        }
+        .thanks {
+            text-align: center;
+            color: #000 !important;
+            font-size: 1.2em;
+            margin-top: 18px;
+            letter-spacing: 0.8px;
+            line-height: 1.6;
+            font-weight: 600;
+        }
+        .contact {
+            text-align: center;
+            color: #000 !important;
+            font-size: 1.05em;
+            margin-top: 8px;
+            letter-spacing: 0.05em;
+            line-height: 1.5;
+            /* 改：不再用这里的 margin-bottom 来凑空白，统一用 tail-blank 控制 */
+            margin-bottom: 120 !important;
+        }
+        /* 永远保留 ≥3cm 底部空白，避免 html2image 裁切地址 */
+        .tail-blank { height: calc(3 * var(--cm)); }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <div class="top-blank"></div>
+
+        <div class="logo-container">
+            <img src="{{ url_for('static', filename='TREASURE.png') }}" alt="Treasure Island">
+        </div>
+
+        <div class="meta">
+            <span>
+                {{ texts['order'] if texts.get('order') else '주문번호 Order' }}: <b>{{ sale_id }}</b>
+            </span>
+            <span>
+                {{ texts['date'] if texts.get('date') else '날짜 Date' }}: {{ time }}
+            </span>
+        </div>
+
+        <hr>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:25%;">{{ texts['product'] if texts.get('product') else '상품 Product' }}</th>
+                    <th style="width:10%;">{{ texts['qty'] if texts.get('qty') else '수량 Qty' }}</th>
+                    <th class="amount" style="width:30%;">{{ texts['price'] if texts.get('price') else '단가 Price' }}</th>
+                    <th class="amount" style="width:33%;">{{ texts['subtotal'] if texts.get('subtotal') else '합계 Subtotal' }}</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for bc, item in items.items() %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.qty }}</td>
+                    <td class="amount">₩{{ '{:.0f}'.format(item.price) }}</td>
+                    <td class="amount">₩{{ '{:.0f}'.format(item.qty * item.price) }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <hr>
+
+        {% if pay_type == "card" %}
+            <div class="vat-row">
+                <span class="vat-label">부가가치세(VAT 10%):</span>
+                ₩{{ vat | int }}
+            </div>
+        {% endif %}
+
+        <div class="footer">
+            {{ texts['total'] if texts.get('total') else '총액 Total' }}:
+            <span>₩{{ total | int }}</span>
+        </div>
+
+        {% if pay_type == "cash" %}
+            <div class="vat-notice">
+                VAT 별도 / VAT not included / 不含增值税
+            </div>
+        {% endif %}
+
+        <div class="thanks">
+            {{ texts['thank'] if texts.get('thank') else '감사합니다! Thank you!' }}
+        </div>
+        <div class="contact">
+            {{ texts['contact'] if texts.get('contact') else 'Contact' }}: 010-7757-9705<br>
+            서울(Seoul), DDP 3F, 02
+        </div>
+
+        <!-- 固定 3cm 尾部空白，防止任何情况下地址被裁掉 -->
+        <div class="tail-blank"></div>
+    </div>
+</body>
+</html>
