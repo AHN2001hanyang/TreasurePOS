@@ -183,6 +183,23 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(IMAGE_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+# ===== 安全校验：仅允许 static/images 下的受控相对路径 =====
+SAFE_IMAGE_RE = re.compile(r'^images/[A-Za-z0-9_\-]+\.(?:jpe?g|png|webp)$', re.I)
+def is_safe_image_relpath(p: str) -> bool:
+    if not p:
+        return False
+    p = p.replace('\\', '/')
+    # 禁止绝对路径、盘符、上跳
+    if p.startswith('/') or '..' in p or re.match(r'^[A-Za-z]:[\\/]', p):
+        return False
+    if not SAFE_IMAGE_RE.fullmatch(p):
+        return False
+    abs_path = os.path.normpath(os.path.join(app.static_folder, p))
+    try:
+        return os.path.commonpath([abs_path, IMAGE_FOLDER]) == IMAGE_FOLDER
+    except Exception:
+        return False
+
 # ---- SQLite 连接助手 ----
 def connect_db():
     db_path = os.path.join(base_path, 'inventory.db')
@@ -590,6 +607,9 @@ def add_item():
             return jsonify({'msg': TEXTS[get_lang()]['qty_nonnegative']}), 400
         status = data.get('status', '정상')
         image_path = data.get('image', '') or ''
+        # 仅允许受控的相对路径
+        if not is_safe_image_relpath(image_path):
+            image_path = ''
 
     discontinued_time = None
     if status == '절판':
@@ -629,7 +649,7 @@ def edit_item(barcode):
         image_path = ''
         if image:
             image_path = _save_and_validate_image(image, barcode_safe)
-        elif image_old:
+        elif image_old and is_safe_image_relpath(image_old):
             image_path = image_old
         else:
             image_path = ''
@@ -645,6 +665,8 @@ def edit_item(barcode):
             return jsonify({'msg': TEXTS[get_lang()]['qty_nonnegative']}), 400
         status = data.get('status', '정상')
         image_path = data.get('image', '') or ''
+        if not is_safe_image_relpath(image_path):
+            image_path = ''
 
     conn = connect_db()
     c = conn.cursor()
@@ -700,8 +722,8 @@ def del_item(barcode):
     c = conn.cursor()
     c.execute('SELECT image FROM items WHERE barcode=?', (barcode,))
     row = c.fetchone()
-    if row and row[0]:
-        img_path = os.path.join(app.static_folder, row[0])
+    if row and row[0] and is_safe_image_relpath(row[0]):
+        img_path = os.path.normpath(os.path.join(app.static_folder, row[0]))
         try:
             if os.path.exists(img_path):
                 os.remove(img_path)
