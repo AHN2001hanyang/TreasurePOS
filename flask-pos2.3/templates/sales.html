@@ -137,7 +137,7 @@
         <button class="btn btn-outline-warning ms-2" onclick="showRefundModal()" id="btn_refund_selected">
             <i class="bi bi-arrow-counterclockwise"></i> {{ texts['refund'] if texts.get('refund') else '선택 환불' }}
         </button>
-        <a href="/export/sales" class="btn btn-outline-primary ms-auto" id="btn_export" target="_blank">
+        <a href="/export/sales" class="btn btn-outline-primary ms-auto" id="btn_export" target="_blank" rel="noopener">
             <i class="bi bi-file-earmark-excel"></i> {{ texts['export'] if texts.get('export') else '판매 기록 엑셀 내보내기' }}
         </a>
     </div>
@@ -178,7 +178,7 @@
           <form id="deleteForm">
             <div class="modal-header">
               <h5 class="modal-title">{{ texts['confirm_delete'] if texts.get('confirm_delete') else '정말 삭제하시겠습니까?' }}</h5>
-              <button type="button" class="btn-close" onclick="closeDeleteModal()"></button>
+              <button type="button" class="btn-close" onclick="closeDeleteModal"></button>
             </div>
             <div class="modal-body">
               <div class="mb-2">{{ texts['delete_reason'] if texts.get('delete_reason') else '삭제 사유를 선택하세요:' }}</div>
@@ -244,7 +244,13 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        /* ===== 金额格式化/日期本地化 ===== */
+        /* ===== 安全转义/金额/日期 ===== */
+        function esc(s){
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/[&<>"'`]/g, m => ({
+                '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'
+            }[m]));
+        }
         function money(n){ const v = Number(n||0); return v.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}); }
         function localDateStr(d){
             const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
@@ -298,6 +304,7 @@
             loadSales(1);
             loadChart();
             loadHeatmap();
+            loadTop10();
         }
 
         // 销售表
@@ -333,9 +340,9 @@
                     } else {
                         typeStr = `<span class="badge badge-type">{{ texts["retail"] if texts.get("retail") else "零售价" }}</span>`;
                     }
-                    const sizeStr = item.size ? `<span class="badge badge-size">${item.size}</span>` : '';
-                    const catStr = item.category ? `<span class="badge badge-cat">${item.category}</span>` : '';
-                    items += `<span class="badge bg-light text-dark border me-1">${item.name}</span> ×${Number(item.qty||0)} <span class="text-muted" style="font-size:0.97em;">₩${money(item.price)}</span> ${typeStr} ${catStr} ${sizeStr}<br>`;
+                    const sizeStr = item.size ? `<span class="badge badge-size">${esc(item.size)}</span>` : '';
+                    const catStr = item.category ? `<span class="badge badge-cat">${esc(item.category)}</span>` : '';
+                    items += `<span class="badge bg-light text-dark border me-1">${esc(item.name)}</span> ×${Number(item.qty||0)} <span class="text-muted" style="font-size:0.97em;">₩${money(item.price)}</span> ${typeStr} ${catStr} ${sizeStr}<br>`;
                 }
                 let payBadge = '';
                 if(sale.pay_type === "card"){
@@ -354,9 +361,9 @@
                 }
                 tb.innerHTML += `
                     <tr class="${isRefunded ? 'refunded-row' : ''}">
-                        <td><input type="checkbox" class="row-check" value="${sale.id}" ${isRefunded ? 'disabled' : ''}></td>
-                        <td>${sale.id}</td>
-                        <td>${sale.time}</td>
+                        <td><input type="checkbox" class="row-check" value="${Number(sale.id)}" ${isRefunded ? 'disabled' : ''}></td>
+                        <td>${Number(sale.id)}</td>
+                        <td>${esc(sale.time)}</td>
                         <td>${payBadge}</td>
                         <td>${items}${isRefunded ? '<span class="badge refunded-badge ms-1">{{ texts["refund"] if texts.get("refund") else "환불됨" }}</span>' : ''}</td>
                         <td><strong>${totalCol}</strong></td>
@@ -396,7 +403,7 @@
 
         function deleteSelected() {
             selectedIds = Array.from(document.querySelectorAll('.row-check:checked')).map(cb => parseInt(cb.value, 10));
-            if(selectedIds.length === 0) { alert("{{ texts['select_to_delete'] if texts.get('select_to_delete') else '삭제할 기록을 선택하세요' }}"); return; }
+            if(selectedIds.length === 0) { alert("{{ texts['select_to_delete'] if texts.get('select_to_delete') else '删除要删除的记录' }}"); return; }
             showDeleteModal();
         }
 
@@ -431,7 +438,7 @@
 
         function showRefundModal() {
             selectedIds = Array.from(document.querySelectorAll('.row-check:checked')).map(cb => parseInt(cb.value, 10));
-            if(selectedIds.length === 0) { alert("{{ texts['select_to_refund'] if texts.get('select_to_refund') else '환불할 기록을选择' }}"); return; }
+            if(selectedIds.length === 0) { alert("{{ texts['select_to_refund'] if texts.get('select_to_refund') else '请选择要退款的记录' }}"); return; }
             document.getElementById('refundModal').style.display = 'block';
             document.getElementById('refundModal').classList.add('show');
             document.body.style.overflow = 'hidden';
@@ -524,7 +531,7 @@
         function updateSummary(sales, orders, labels) {
             const sum = sales.reduce((a,b)=>a+Number(b||0),0);
             const cnt = orders.reduce((a,b)=>a+Number(b||0),0);
-            let msg = `<strong>₩${sum.toLocaleString()}</strong> {{ texts['total'] if texts.get('total') else '총액' }} / <strong>${cnt}</strong> {{ texts['order_count'] if texts.get('order_count') else '주문수' }} (기간: ${labels[0]||''} ~ ${labels[labels.length-1]||''})`;
+            let msg = `<strong>₩${sum.toLocaleString()}</strong> {{ texts['total'] if texts.get('total') else '总额' }} / <strong>${cnt}</strong> {{ texts['order_count'] if texts.get('order_count') else '订单数' }} (기간: ${labels[0]||''} ~ ${labels[labels.length-1]||''})`;
             msg += (payFilter === 'all') ? '' : ` &nbsp;<span class="badge badge-pay ${payFilter === 'card' ? 'pay-card':'pay-cash'}">${payFilter === 'card' ? '{{ texts.get("card","Card") }}' : '{{ texts.get("cash","Cash") }}'}</span>`;
             document.getElementById('statSummary').innerHTML = msg;
         }
@@ -534,7 +541,9 @@
             const listEl = document.getElementById('top10List');
             listEl.innerHTML = `<li class="text-muted">{{ texts.get('loading','加载中...') }}</li>`;
             try{
-                const res = await fetch('/api/sales/top_items?days=60');
+                let url = '/api/sales/top_items?days=60';
+                if (payFilter !== 'all') url += `&pay_type=${payFilter}`;
+                const res = await fetch(url);
                 if(res.ok){
                     const data = await res.json();
                     renderTop10(data);
@@ -574,9 +583,9 @@
             }
             let html = '';
             data.forEach((item, idx) => {
-                const catStr = item.category ? `<span class="badge badge-cat">${item.category}</span>` : '';
-                const sizeStr = item.size ? `<span class="badge badge-size">${item.size}</span>` : '';
-                html += `<li><span class="badge badge-rank">${idx+1}</span> <b>${item.name}</b> ${catStr} ${sizeStr} <span class="text-primary ms-2">${item.count}</span></li>`;
+                const catStr = item.category ? `<span class="badge badge-cat">${esc(item.category)}</span>` : '';
+                const sizeStr = item.size ? `<span class="badge badge-size">${esc(item.size)}</span>` : '';
+                html += `<li><span class="badge badge-rank">${idx+1}</span> <b>${esc(item.name)}</b> ${catStr} ${sizeStr} <span class="text-primary ms-2">${Number(item.count||0)}</span></li>`;
             });
             listEl.innerHTML = html;
         }
@@ -725,7 +734,7 @@
 
         // Modal关闭体验增强
         document.addEventListener('click', function(e) {
-            if(e.target.classList.contains('modal')) {
+            if(e.target && e.target.classList && e.target.classList.contains('modal')) {
                 e.target.style.display = 'none';
                 e.target.classList.remove('show');
                 document.body.style.overflow = '';

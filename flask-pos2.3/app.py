@@ -523,7 +523,9 @@ def import_items():
         category = norm_category(row.get('category', 'bag'))
         size = norm_size(row.get('size', 'free'))
         status = str(row.get('status', '정상'))
-        image = str(row.get('image', '') or '')
+        # —— 仅接受 static/images 下的受控相对路径；否则置空
+        img = str(row.get('image', '') or '').replace('\\', '/')
+        image = img if is_safe_image_relpath(img) else ''
         c.execute('''INSERT OR REPLACE INTO items
             (barcode, name, price, price_int, wholesale_price, wholesale_price_int, qty, category, size, status, image)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
