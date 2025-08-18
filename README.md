@@ -39,40 +39,39 @@ python main.py        # desktop window (embedded browser)
 <summary><b>🇰🇷 한국어 안내</b></summary>
 
 ### 개요
-TreasurePOS는 로컬에서 실행되는 경량 POS 웹앱입니다. 바코드 스캔/수기 입력, 소매/도매가 전환, 결제수단(현금/카드) 선택, 재고 입·출고 기록, 매출 통계/히트맵, Excel Import/Export, 언어 전환(한국어/中文/English)을 지원합니다.
+TreasurePOS는 로컬에서 실행되는 경량 POS 웹앱입니다. 바코드 스캔/수기 입력, 소매/도매가 전환, 결제수단(현금/카드), 재고 입·출고 기록, 매출 통계/히트맵, Excel Import/Export, 언어 전환(한국어/中文/English)을 지원합니다.
 
 ### 🔶 주요 특장점 (Highlights)
-- **영수증 폭 기본 79mm (≈624px @ 203dpi)** — `receipt.html`의 CSS에서 쉽게 변경 가능합니다.
-  ```css
-  :root { --paper-w: 624px; }   /* ≈79mm @203dpi */
-  .receipt { width: 79mm; }     /* mm 단위도 직접 사용 가능 */
-  ```
-- **기본 프린터: Zebra ZD230** — `app.py`의 프린터 이름이 기본값으로 설정되어 있습니다. 환경에 맞게 수정하면 다른 Zebra/열감열 프린터도 동작합니다.
-  ```python
-  printer_name = "ZDesigner ZD230-203dpi ZPL"
-  ```
-- **Zebra 언어팩 불필요** — `receipt.html`을 이미지로 렌더링한 뒤 ZPL 그래픽으로 전송하므로, OS에 폰트만 있으면 **한/중/영 등 유니코드 텍스트 출력**이 가능합니다.
-- **설정 페이지에서 UI 언어 전환** — Settings에서 한국어/中文/English 즉시 전환.
+- **영수증 폭 79mm(= 7.9cm, ≈ 632 dots @203dpi)** — `receipt.html` + `app.py` + ZPL을 **동일 값**으로 맞추면 왜곡/잘림이 없습니다.
+- **기본 프린터: Zebra ZD230** — `app.py` 기본값. 다른 Zebra/열감열 프린터도 이름만 바꾸면 사용 가능.
+- **Zebra 언어팩 불필요** — `receipt.html`을 이미지로 렌더링 후 ZPL 그래픽으로 전송하므로 OS 폰트만 있으면 **한/중/영 등 유니코드 출력**.
+- **설정 페이지에서 UI 언어 전환** — 한국어/中文/English 즉시 전환.
 
-### 🖨️ 영수증 폭 & app.py 설정
-CSS만 바꾸면 화면 폭만 변하고, 프린터 실제 점폭(dots)은 그대로일 수 있습니다. 아래처럼 **app.py도 함께** 설정하세요.
+### 🖨️ 폭 동기화(권장, Strict 79mm)
+아래 3가지를 **동일 기준**으로 맞추세요. (권장: 79mm → 632 dots@203dpi)
 
-**① 환경변수 방식(권장):**
-```powershell
-# Windows PowerShell 예시
-$env:RECEIPT_MM="79"         # 58 / 72 / 79 / 80 등
-$env:RECEIPT_DPI="203"       # 203 또는 300
-$env:PRINTER_NAME="ZDesigner ZD230-203dpi ZPL"
-python app.py
-```
+1) **CSS (receipt.html)**  
+   ```css
+   :root { --paper-w: 632px; }   /* 79mm @203dpi ≈ 632 dots */
+   .receipt { width: 79mm; }
+   @page { size: 79mm auto; margin: 0; }
+   ```
 
-**② 코드 패치 예시(app.py):**
+2) **스크린샷(app.py)**  
+   - `hti.screenshot(..., size=(W, H))`에서 `W = 632`
+   - 또는 아래 **자동 환산 패치** 사용(추천)
+
+3) **ZPL 출력(app.py)**  
+   - `^PW{W}`(점폭)과 `^LL{H}`(라벨 길이)를 설정
+
+#### 자동 환산 패치(추천)
 ```python
+# app.py — put near the top
 import os
 
 def _get_receipt_cfg():
-    mm  = float(os.getenv("RECEIPT_MM", "79"))
-    dpi = int(os.getenv("RECEIPT_DPI", "203"))
+    mm  = float(os.getenv("RECEIPT_MM", "79"))   # 79mm default
+    dpi = int(os.getenv("RECEIPT_DPI", "203"))   # 203 or 300
     dpmm = dpi / 25.4
     width_dots = int(round(mm * dpmm))
     return mm, dpi, width_dots
@@ -82,7 +81,7 @@ def _calc_canvas_size(height_rows_hint=None):
     H = height_rows_hint if height_rows_hint else 1500
     return W, H
 
-# ... print_receipt 내에서 ...
+# ... inside print_receipt ...
 H = _estimate_receipt_height(sale_id)
 W, _ = _calc_canvas_size(H)
 hti.screenshot(url=url, save_as=tmp_save_name, size=(W, H))
@@ -92,7 +91,15 @@ zpl = (
 )
 ```
 
-> **표 참고 (203dpi 기준)**: 58mm→464 dots, 72mm→576, **79mm→632**, 80mm→640. 300dpi는 각각 ×(300/203) 정도로 증가합니다.
+**PowerShell 예시:**
+```powershell
+$env:RECEIPT_MM="79"
+$env:RECEIPT_DPI="203"
+$env:PRINTER_NAME="ZDesigner ZD230-203dpi ZPL"
+python app.py
+```
+
+> **대안(최소 변경, 78mm 유지)**: CSS를 **78mm**로 바꾸고, 기존 `W=624` 그대로 두며 ZPL에 `^PW624`/`^LL{H}`만 추가.
 
 </details>
 
@@ -102,34 +109,34 @@ zpl = (
 <summary><b>🇨🇳 中文说明</b></summary>
 
 ### 简介
-TreasurePOS 是一款**本地运行**的轻量级 POS 网页应用。支持条码扫描/手输、零售价/批发价切换、付款方式（现金/刷卡）、库存出入库记录、销售统计与热力图、Excel 导入/导出，以及多语言（韩/中/英）切换。
+TreasurePOS 是一款**本地运行**的轻量级 POS 网页应用。支持条码扫描/手输、零/批价切换、现金/刷卡、出入库记录、销售统计与热力图、Excel 导入/导出，以及多语言（韩/中/英）切换。
 
 ### 🔶 亮点 (Highlights)
-- **默认票据宽度 79mm（≈624px @203dpi）** — 可在 `receipt.html` 的 CSS 中修改：
-  ```css
-  :root { --paper-w: 624px; }   /* ≈79mm @203dpi */
-  .receipt { width: 79mm; }
-  ```
-- **默认打印机：Zebra ZD230** — `app.py` 中默认写了打印机名，按实际环境修改即可兼容其它 Zebra/热敏机。
-  ```python
-  printer_name = "ZDesigner ZD230-203dpi ZPL"
-  ```
-- **无需购买 Zebra 语言包** — 将 `receipt.html` 渲染为图片后以 ZPL 图像发送；只要系统安装了字体，即可打印 **中/韩/英等 Unicode 文本**。
-- **设置页可切换 UI 语言** — 中文 / 한국어 / English 任意切换。
+- **票据宽 79mm（= 7.9cm，≈ 632 dots@203dpi）** — `receipt.html` + `app.py` + ZPL **三者同值**，可避免缩放/裁切。
+- **默认打印机：Zebra ZD230** — `app.py` 默认值。更改名称即可适配其它 Zebra/热敏机。
+- **无需购买 Zebra 语言包** — 将 `receipt.html` 渲染为图片再以 ZPL 图像发送；系统装字体即可打印 **中/韩/英**。
+- **设置页三语切换** — 中文 / 한국어 / English 即时切换。
 
-### 🖨️ 宽度与 app.py 同步设置
-仅改 CSS 会导致**页面宽**与**打印点宽**不一致。请同时调整 **app.py**：
+### 🖨️ 宽度同步（推荐，严格 79mm）
+把下面 3 项**统一**（推荐：79mm → 632 dots@203dpi）：
 
-**① 环境变量（推荐）：**
-```powershell
-$env:RECEIPT_MM="79"
-$env:RECEIPT_DPI="203"         # 203 or 300
-$env:PRINTER_NAME="ZDesigner ZD230-203dpi ZPL"
-python app.py
-```
+1) **CSS（receipt.html）**
+   ```css
+   :root { --paper-w: 632px; }   /* 79mm @203dpi ≈ 632 dots */
+   .receipt { width: 79mm; }
+   @page { size: 79mm auto; margin: 0; }
+   ```
 
-**② 代码改动示例（app.py）：**
+2) **截图（app.py）**
+   - `hti.screenshot(..., size=(W, H))` 中 `W = 632`
+   - 或使用下方**自动换算补丁**（推荐）
+
+3) **ZPL（app.py）**
+   - 设置 `^PW{W}`（打印点宽）与 `^LL{H}`（标签长度）
+
+#### 自动换算补丁（推荐）
 ```python
+# app.py 顶部附近
 import os
 
 def _get_receipt_cfg():
@@ -154,7 +161,15 @@ zpl = (
 )
 ```
 
-> **对照表（203dpi）**：58mm→464 dots，72mm→576，**79mm→632**，80mm→640；300dpi 时按比例增大。
+**PowerShell 示例：**
+```powershell
+$env:RECEIPT_MM="79"
+$env:RECEIPT_DPI="203"
+$env:PRINTER_NAME="ZDesigner ZD230-203dpi ZPL"
+python app.py
+```
+
+> **最小变动方案（保持 78mm）**：把 CSS 改成 **78mm**，`W=624` 保持不变，只在 ZPL 里加 `^PW624`/`^LL{H}`。
 
 </details>
 
@@ -164,34 +179,34 @@ zpl = (
 <summary><b>🇺🇸 English Guide</b></summary>
 
 ### Overview
-TreasurePOS is a **local‑first** Flask POS app with barcode/manual input, retail/wholesale toggle, cash/card payments, stock logs, analytics & heatmap, Excel import/export, and multilingual UI (KO/ZH/EN).
+TreasurePOS is a **local‑first** Flask POS with barcode/manual input, retail/wholesale toggle, cash/card payments, stock logs, analytics & heatmap, Excel import/export, and multilingual UI (KO/ZH/EN).
 
 ### 🔶 Highlights
-- **Receipt width 79 mm by default (≈624 px @203 dpi)** — change in `receipt.html`:
-  ```css
-  :root { --paper-w: 624px; }   /* ≈79mm @203dpi */
-  .receipt { width: 79mm; }
-  ```
-- **Default printer: Zebra ZD230** — hard‑coded printer name in `app.py`; edit to match other Zebra/thermal printers.
-  ```python
-  printer_name = "ZDesigner ZD230-203dpi ZPL"
-  ```
-- **No Zebra language pack needed** — we render `receipt.html` to an image and send as ZPL graphic; with proper OS fonts, any Unicode prints.
-- **Settings page language switch** — toggle KO/ZH/EN instantly.
+- **79 mm width (= 7.9 cm, ≈ 632 dots @203 dpi)** — keep **CSS + screenshot W + ZPL** identical to avoid scaling/clipping.
+- **Default printer: Zebra ZD230** — change the name to use other Zebra/thermal printers.
+- **No Zebra language pack** — `receipt.html` → image → ZPL graphic; with OS fonts, Unicode (KO/ZH/EN) prints fine.
+- **Language switch in Settings** — toggle KO/ZH/EN instantly.
 
-### 🖨️ Keep width in sync (receipt.html + app.py)
-Changing CSS alone affects the **screen width** but not **printer dot width**. Update **app.py** as well:
+### 🖨️ Width sync (Recommended, strict 79 mm)
+Align all three (recommended: 79 mm → 632 dots @203 dpi):
 
-**1) Environment variables (recommended):**
-```powershell
-$env:RECEIPT_MM="79"            # 58 / 72 / 79 / 80 ...
-$env:RECEIPT_DPI="203"          # 203 or 300
-$env:PRINTER_NAME="ZDesigner ZD230-203dpi ZPL"
-python app.py
-```
+1) **CSS (receipt.html)**
+   ```css
+   :root { --paper-w: 632px; }   /* 79mm @203dpi ≈ 632 dots */
+   .receipt { width: 79mm; }
+   @page { size: 79mm auto; margin: 0; }
+   ```
 
-**2) Code patch (app.py):**
+2) **Screenshot (app.py)**
+   - `hti.screenshot(..., size=(W, H))` with `W = 632`
+   - Or use the **auto‑convert patch** below (recommended).
+
+3) **ZPL (app.py)**
+   - Set `^PW{W}` (print width in dots) and `^LL{H}` (label length).
+
+#### Auto‑convert patch (recommended)
 ```python
+# app.py — near the top
 import os
 
 def _get_receipt_cfg():
@@ -216,16 +231,30 @@ zpl = (
 )
 ```
 
-> **Cheat sheet (203 dpi)**: 58 mm→464 dots, 72 mm→576, **79 mm→632**, 80 mm→640. 300 dpi scales accordingly.
+**PowerShell example:**
+```powershell
+$env:RECEIPT_MM="79"
+$env:RECEIPT_DPI="203"
+$env:PRINTER_NAME="ZDesigner ZD230-203dpi ZPL"
+python app.py
+```
+
+> **Minimal‑change alternative (keep ~78 mm)**: change CSS to **78 mm**, keep `W=624`, and add `^PW624`/`^LL{H}` in ZPL.
 
 </details>
 
 ---
 
+## ✅ Consistency checklist (CSS ↔ Screenshot ↔ ZPL)
+- **CSS width** in `receipt.html` uses the same millimeters as your target (e.g., **79 mm**).  
+- **Screenshot width `W`** equals the computed **printer dots**: `W = RECEIPT_MM × (RECEIPT_DPI / 25.4)` (79 mm@203 dpi ≈ **632**).  
+- **ZPL** sets `^PW{W}` and a suitable `^LL{H}`.  
+Keeping all three aligned avoids margins, shrinking, or clipping.
+
 ## Configuration
-- **Environment variable**: `TREASUREPOS_DATA_DIR` to change the data root.
-- **Receipt width**: Change CSS in `receipt.html` (e.g., `79mm`) **and** printer dots via `RECEIPT_MM/RECEIPT_DPI` or code patch.
-- **Printer name**: Use `PRINTER_NAME` env var or edit in `app.py` (default `ZDesigner ZD230-203dpi ZPL`).
+- **Environment**: `TREASUREPOS_DATA_DIR` (data root), `RECEIPT_MM`, `RECEIPT_DPI`, `PRINTER_NAME`.
+- **Default printer**: `ZDesigner ZD230-203dpi ZPL` (editable).
+- **Change form factors**: set `RECEIPT_MM=58/72/79/80` and correct `DPI`; CSS + screenshot + ZPL update together.
 
 ## Project Structure (simplified)
 ```
@@ -242,10 +271,10 @@ zpl = (
 ```
 
 ## Troubleshooting
-- **Pip uninstall doesn’t work in venv**: ensure you’re using the venv’s interpreter (`python -m pip ...`) and **do not** inherit global site‑packages.
-- **Non‑Latin characters print as squares**: install a font on your OS that covers the target script (e.g., Noto Sans CJK) and use it in `receipt.html`.
-- **Nothing prints**: verify printer driver, printer name, and that the app runs with sufficient permission on Windows.
-- **Image too wide/narrow**: keep CSS `mm` and `RECEIPT_MM/RECEIPT_DPI` in sync; adjust `--paper-w` or dots.
+- **Pip uninstall doesn’t work in venv** → use `python -m pip ...` and avoid inheriting global site‑packages.
+- **Squares instead of characters** → install a CJK font (e.g., Noto Sans CJK) and set it in `receipt.html`.
+- **Nothing prints** → verify driver, printer name, and app permission on Windows.
+- **Too wide/narrow** → re‑align CSS mm, screenshot `W`, and ZPL `^PW` (see checklist).
 
 ## Roadmap
 - Refund workflow improvements
