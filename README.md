@@ -1,5 +1,3 @@
-# TreasurePOS (Flask + Desktop WebView)
-
 Local‑first POS for small shops. Scan or type barcodes, switch retail/wholesale price, sell with cash or card, keep stock logs, view sales analytics, and print Zebra receipts (KO/ZH/EN).
 
 > **Heads‑up:** This repository currently contains **duplicate blocks** in `app.py` for the printing pipeline (older Html2Image code alongside the newer Playwright‑based flow). In practice you should keep **one** implementation. This README documents the **recommended Playwright + ZPL** flow.
