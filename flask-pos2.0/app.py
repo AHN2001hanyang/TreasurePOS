@@ -13,6 +13,7 @@ import shutil
 import math
 import csv
 import io
+import uuid  # ✅ 新增：用于临时文件命名
 
 # ===== 多语言字典 + 分类/尺码映射 =====
 CATEGORY_CODE = ['bag', 'top', 'bottom', 'shoes','dress']
@@ -46,7 +47,7 @@ TEXTS = {
         'heatmap_title': '요일×시간 히트맵', 'metric': '지표', 'metric_orders': '주문수', 'metric_sales': '매출', 'metric_items': '판매수량',
         'mon': '월', 'tue': '화', 'wed': '수', 'thu': '목', 'fri': '금', 'sat': '토', 'sun': '일',
         # ====== 新增：后端 & sales 页面需要的键 ======
-        'pay_type': '결제 방식', 'card': '카드', 'cash': '현금',
+        'pay_type': '결제 방식', 'card': '카드', 'cash': '현금','priceforreceipt':'가격',
         'stats': '통계 유형', 'period': '기간', 'filter': '필터',
         'day': '일별', 'week': '주별', 'month': '월별', 'year': '연별',
         'low': '낮음', 'high': '높음',
@@ -66,7 +67,7 @@ TEXTS = {
     'zh': {
         'title': '收银台', 'manage': '商品管理', 'sales': '销售记录',
         'setting': '设置', 'print': '打印小票', 'total': '总金额',
-        'product': '商品', 'qty': '数量', 'price': '单价', 'wholesale_price': '批发价',
+        'product': '商品', 'qty': '数量', 'price': '单价', 'wholesale_price': '批发价','priceforreceipt':'价格',
         'subtotal': '小计', 'date': '日期', 'order': '订单号',
         'thank': '谢谢光临! Thank you! 감사합니다!', 'contact': '联系方式', 'export': '导出Excel',
         'add': '添加商品', 'delete': '删除', 'stocklog': '出入库管理', 'checkout': '结算',
@@ -136,7 +137,7 @@ TEXTS = {
         # ====== New: backend & sales page keys ======
         'pay_type': 'Payment Type', 'card': 'Card', 'cash': 'Cash',
         'stats': 'Stats', 'period': 'Period', 'filter': 'Filter',
-        'day': 'Daily', 'week': 'Weekly', 'month': 'Monthly', 'year': 'Yearly',
+        'day': 'Daily', 'week': 'Weekly', 'month': 'Monthly', 'year': 'Yearly','priceforreceipt':'Unit Price',
         'low': 'Low', 'high': 'High',
         'per_page': 'Per page', 'current_page': 'Page', 'records': 'Records',
         'delete_selected': 'Delete Selected', 'refund': 'Refund', 'delete_reason': 'Choose a delete reason:',
@@ -1502,14 +1503,14 @@ def receipt(sale_id):
         pay_type=pay_type
     )
 
-# （可选）ZPL 打印（保持不变）
-from html2image import Html2Image
+# （可选）ZPL 打印（保持不变+增强：按图片实际宽高写入 ^PW/^LL）
 from PIL import Image, ImageOps
 from PIL import Image as PILImage  # for type hints
+from PIL import ImageStat
 
 def image_to_zpl(image_path, image_name="RECEIPT.GRF"):
     img = Image.open(image_path).convert("L")
-    threshold = 200
+    threshold = 200  # 可按需要 190~220 微调黑度
     img = img.point(lambda x: 255 if x > threshold else 0, mode='1')
     img = ImageOps.invert(img.convert('L')).convert('1')
     w, h = img.size
@@ -1528,94 +1529,94 @@ def image_to_zpl(image_path, image_name="RECEIPT.GRF"):
     header = f"~DG{image_name},{total_bytes},{row_bytes},\n"
     return header + zpl_data
 
-def _estimate_receipt_height(sale_id: int) -> int:
-    CM_TO_PX = 37.7952755906
-    BASE = 1500
-    PER_ROW = 90
-    EXTRA_BOTTOM = int(3 * CM_TO_PX) + 60
-    VAT_ROW = 60
-    SAFETY = 150
+# ===== Playwright 元素截图（方案 1） =====
+# 需要：pip install playwright && playwright install chromium
+try:
+    from playwright.sync_api import sync_playwright
+except Exception:
+    sync_playwright = None
 
-    n_rows = 0
-    extra_wrap_px = 0
-    is_card = False
-    try:
-        conn = connect_db()
-        c = conn.cursor()
-        c.execute('SELECT items, pay_type FROM sales WHERE id=?', (sale_id,))
-        row = c.fetchone()
-        conn.close()
-        if row and row[0]:
-            items = json.loads(row[0])
-            n_rows = len(items)
-            for it in items.values():
-                name_len = len(str(it.get('name','')))
-                if name_len > 16:
-                    extra_lines = math.ceil((name_len-16)/16.0)
-                    extra_wrap_px += extra_lines * 20
-        if row and row[1] == 'card':
-            is_card = True
-    except Exception:
-        return 1500
+def render_receipt_png(url: str, out_path: str, width_px: int = 624) -> int:
+    """
+    用 Playwright 打开页面并对 .receipt 元素做“元素截图”，
+    返回元素实际高度（像素）。无需预估，也不会多空白。
+    """
+    if sync_playwright is None:
+        raise RuntimeError("Playwright not available. Please `pip install playwright` and `playwright install chromium`.")
 
-    height = BASE + n_rows*PER_ROW + extra_wrap_px + (VAT_ROW if is_card else 0) + EXTRA_BOTTOM + SAFETY
-    return max(900, min(int(height), 6000))
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(
+            viewport={"width": width_px, "height": 10, "deviceScaleFactor": 1},
+        )
+        page.goto(url, wait_until="networkidle")
+        page.wait_for_selector(".receipt")
+        # 等字体就绪（有 webfont 时）
+        try:
+            page.wait_for_function("document.fonts ? document.fonts.ready && document.fonts.status === 'loaded' : true", timeout=5000)
+        except Exception:
+            pass
+
+        # 只截 .receipt 元素
+        box = page.eval_on_selector(".receipt", "el => el.getBoundingClientRect().toJSON()")
+        page.locator(".receipt").screenshot(path=out_path, type="png")
+        browser.close()
+        return int(round(box.get("height", 0) or 0))
 
 @app.route('/api/print_receipt/<int:sale_id>', methods=['POST'])
 def print_receipt(sale_id):
     from flask import jsonify
 
-    H = _estimate_receipt_height(sale_id)
-    W = 624
-
     tmp_img_path = None
     try:
         base_url = (request.host_url or "http://127.0.0.1:5000").rstrip('/')
         url = f"{base_url}/receipt/{sale_id}?for_print=1"
-        hti = Html2Image()
 
+        # 1) Playwright 元素截图（624px=79mm），尾部 2cm 由 HTML 的 .tail-blank 保证
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpf:
             tmp_img_path = tmpf.name
+        final_h = render_receipt_png(url, tmp_img_path, width_px=624)
 
-        tmp_save_name = f"receipt_{sale_id}.png"
-        hti.screenshot(url=url, save_as=tmp_save_name, size=(W, H))
-        shutil.move(tmp_save_name, tmp_img_path)
-    except Exception as e:
-        try:
-            if tmp_img_path and os.path.exists(tmp_img_path):
-                os.remove(tmp_img_path)
-        except Exception:
-            pass
-        return jsonify({'msg': 'Image render error: ' + str(e)}), 500
+        # 2) 转为 ZPL，并按实际宽高设置 ^PW/^LL
+        zpl_img = image_to_zpl(tmp_img_path)
 
-    hPrinter = None
-    try:
+        with PILImage.open(tmp_img_path) as im:
+            img_w, img_h = im.size
+        pw = img_w
+        ll = img_h + 15  # 加少量余量，避免贴边裁切
+
+        zpl = (
+            zpl_img +
+            "^XA\n"
+            f"^PW{pw}\n"
+            f"^LL{ll}\n"
+            "^LH0,0\n"
+            "^FO0,0^XGRECEIPT.GRF,1,1^FS\n"
+            "^XZ\n"
+        )
+
+        # 3) 打印（Windows）
         try:
             import win32print
         except Exception as e:
-            if tmp_img_path and os.path.exists(tmp_img_path):
-                os.remove(tmp_img_path)
-            return jsonify({'msg': 'Print error: win32print not available: ' + str(e)}), 500
+            # 如果没有 win32print，仍返回渲染成功，方便先看图
+            return jsonify({'msg': 'rendered', 'note': 'win32print not available', 'img_height': final_h}), 200
 
-        zpl_img = image_to_zpl(tmp_img_path)
-        zpl = zpl_img + "^XA\n^FO0,0^XGRECEIPT.GRF,1,1^FS\n^XZ\n"
-
-        printer_name = "ZDesigner ZD230-203dpi ZPL"  # 硬编码按你要求保留
+        printer_name = "ZDesigner ZD230-203dpi ZPL"  # 按你的环境保留
         hPrinter = win32print.OpenPrinter(printer_name)
-        win32print.StartDocPrinter(hPrinter, 1, ("Receipt", None, "RAW"))
-        win32print.StartPagePrinter(hPrinter)
-        win32print.WritePrinter(hPrinter, zpl.encode("ascii"))
-        win32print.EndPagePrinter(hPrinter)
-        win32print.EndDocPrinter(hPrinter)
-        return jsonify({'msg': 'ok'})
+        try:
+            win32print.StartDocPrinter(hPrinter, 1, ("Receipt", None, "RAW"))
+            win32print.StartPagePrinter(hPrinter)
+            win32print.WritePrinter(hPrinter, zpl.encode("ascii"))
+            win32print.EndPagePrinter(hPrinter)
+            win32print.EndDocPrinter(hPrinter)
+        finally:
+            win32print.ClosePrinter(hPrinter)
+
+        return jsonify({'msg': 'ok', 'img_height': final_h})
     except Exception as e:
         return jsonify({'msg': 'Print error: ' + str(e)}), 500
     finally:
-        try:
-            if hPrinter:
-                win32print.ClosePrinter(hPrinter)
-        except Exception:
-            pass
         try:
             if tmp_img_path and os.path.exists(tmp_img_path):
                 os.remove(tmp_img_path)

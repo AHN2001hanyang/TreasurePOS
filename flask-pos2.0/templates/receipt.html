@@ -1,287 +1,198 @@
 <!DOCTYPE html>
 <html lang="{{ lang }}">
 <head>
-    <meta charset="UTF-8">
-    <title>{{ texts['receipt_title'] if texts.get('receipt_title') else '영수증 Receipt' }}</title>
-    <style>
-        /* 固定画布宽度，和 html2image 的 size=(624,*) 对齐；并提供 cm→px 变量 */
-        :root { --paper-w: 624px; --cm: 37.79527559px; }
+  <meta charset="UTF-8">
+  <title>{{ texts.get('receipt_title', '영수증 Receipt') }}</title>
+<style>
+  /* 固定画布宽度（79mm≈624px）和 cm→px 变量 */
+  :root { --paper-w: 624px; --cm: 37.79527559px; }
 
-        html, body {
-            background: #fff !important;
-            color: #000 !important;
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            min-width: 0;
-            box-sizing: border-box;
-            font-family: 'Arial', 'Noto Sans KR', 'Noto Sans SC', sans-serif;
-            line-height: 1.55;
-            font-size: 18px;
-        }
-        *, *::before, *::after { box-sizing: inherit; }
+  html, body{
+    background:#fff!important; color:#000!important;
+    margin:0; padding:0; width:100%; min-width:0; box-sizing:border-box;
+    font-family:'Arial','Noto Sans KR','Noto Sans SC',sans-serif;
+    line-height:1.55; font-size:18px;
+  }
+  *,*::before,*::after{ box-sizing:inherit; }
 
-        .receipt {
-            width: var(--paper-w);
-            max-width: var(--paper-w);
-            min-width: var(--paper-w);
-            min-height: 360px;
-            margin: 0 auto;
-            background: #fff !important;
-            color: #000 !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            padding: 24px 14px 48px 14px;
-            overflow: visible; /* 子元素不裁剪 */
-            padding-bottom: calc(3 * var(--cm) + 24px); /* 永远有足够底部空间 */
-            /* 右侧呼吸位，避免金额贴边被吃 */
-            padding-right: 22px;
-            border: 1px solid #ddd;
-        }
-        /* 内层 94% 轻度收窄：再给所有内容留一圈安全区（对截图/热敏最稳） */
-        .inner{ width: 97%; margin: 0 auto; }
+  .receipt{
+    width:var(--paper-w); max-width:var(--paper-w); min-width:var(--paper-w);
+    min-height:360px; margin:0 auto; background:#fff!important; color:#000!important;
+    border:1px solid #ddd; box-shadow:none; border-radius:0;
+    /* 底部只保留常规内边距，真正的“2cm 尾部空白”由 .tail-blank 控制 */
+    padding:24px 22px 16px 14px;
+    overflow:visible;
+  }
+  .inner{ width:97%; margin:0 auto; }
 
-        .top-blank {
-            width: 100%;
-            height: 80px; /* ≈ 2cm，避免 DPI 引起的 cm 误差 */
-            background: #fff !important;
-            margin: 0;
-            padding: 0;
-        }
-        .logo-container {
-            width: 100%;
-            text-align: center;
-            margin-bottom: 12px;
-            margin-top: 6px;
-            background: #fff !important;
-        }
-        .logo-container img {
-            width: 520px;
-            max-width: 95%;
-            height: auto;
-            min-width: 120px;
-            margin-bottom: 6px;
-            object-fit: contain;
-            background: #fff !important;
-        }
-        .subtitle {
-            text-align: center;
-            font-size: 1.2em;
-            color: #000 !重要;
-            margin-bottom: 12px;
-            font-weight: 600;
-            letter-spacing: 1.2px;
-            line-height: 1.5;
-        }
-        .meta {
-            color: #000 !important;
-            font-size: 1.05em;
-            margin-bottom: 8px;
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 8px 0;
-            padding: 0 6px;
-        }
-        .meta span { font-weight: 500; }
-        .meta b { font-weight: 700; }
+  .top-blank{ width:100%; height:100px; background:#fff!important; }
 
-        hr {
-            border: none;
-            border-top: 1px solid #000 !important; /* 实线更利于转 1-bit */
-            margin: 12px 0;
-        }
+  .logo-container{ width:100%; text-align:center; margin:6px 0 24px; }
+  .logo-container img{ width:520px; max-width:95%; min-width:120px; height:auto; object-fit:contain; }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 1.5em;
-            margin-bottom: 10px;
-            background: #fff !important;
-            color: #000 !important;
-            table-layout: fixed; /* 列宽稳定 */
-        }
-        th, td {
-            border-bottom: 1px solid #000 !important;
-            padding: 8px 4px;
-            text-align: left;
-            line-height: 1.4;
-            color: #000 !important;
-            background: #fff !important;
-            word-break: break-word;
-            overflow-wrap: anywhere;
-        }
-        th {
-            font-weight: 700;
-            letter-spacing: 0.3px;
-        }
+  .meta{
+    color:#000!important; font-size:1.3em; margin-bottom:8px;
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px 0; padding:0 6px;
+  }
+  .meta b{ font-weight:700; }
 
-        /* 金额列：右对齐 + 不换行（保持一行显示），等宽数字避免抖动 */
-        th.amount, td.amount {
-            text-align: right;
-            white-space: nowrap; /* 按你的要求：不允许换行 */
-            font-variant-numeric: tabular-nums lining-nums;
-            font-feature-settings: "tnum" 1, "lnum" 1;
-            letter-spacing: .2px;
-        }
-        /* 最右列额外右内边距，进一步防裁切 */
-        th.amount:last-child, td.amount:last-child { padding-right: 12px; }
+  /* 适度加大分隔线间距 */
+  hr{ border:none; border-top:1px solid #000!important; margin:14px 0; }
 
-        /* 金额本体再加一个微小的可控“右侧安全区” */
-        .num { display: inline-block; padding-right: 6px; }
-        @media print {
-            .num { padding-right: 10px; }
-            th.amount:last-child, td.amount:last-child { padding-right: 14px; }
-        }
+  table{ width:100%; border-collapse:collapse; font-size:1.5em; margin-bottom:10px; table-layout:fixed; }
+  th,td{
+    border-bottom:1px solid #000!important;
+    /* 额外 3px 内边距等效“外边距 3px”（原先为 padding:8px 4px） */
+    padding:11px 7px;
+    text-align:left; line-height:1.4;
+    color:#000!important; background:#fff!important; word-break:break-word; overflow-wrap:anywhere;
+  }
+  th{ font-weight:700; letter-spacing:.3px; }
 
-        /* ✅ 新增：商品名强制换行/断词（长英文/无空格时也能断） */
-        .name-cell{
-            white-space: normal !important;
-            word-break: break-word;
-            overflow-wrap: anywhere;
-            hyphens: auto;
-        }
+  /* 为“商品名 ↔ 数量”留白 */
+  th:first-child,
+  td.name-cell{ padding-right:12px; }
+  thead th:nth-child(2),
+  tbody td:nth-child(2){ padding-left:12px; }
 
-        .footer {
-            text-align: right;
-            margin-top: 8px;
-            font-size: 1.25em;
-            font-weight: 800;
-            color: #000 !important;
-            letter-spacing: 0.6px;
-        }
-        .footer span {
-            color: #000 !important;
-            font-size: 1.3em;
-        }
-        .vat-row {
-            text-align: right;
-            font-size: 1.02em;
-            font-weight: 700;
-            color: #000 !important;
-            margin-top: 10px;
-            margin-bottom: 6px;
-        }
-        .vat-row .vat-label {
-            font-size: 0.95em;
-            font-weight: 600;
-            color: #444 !important;
-        }
-        .vat-notice {
-            text-align: right;
-            font-size: 0.95em;
-            color: #555 !important;
-            font-weight: 500;
-            margin-bottom: 6px;
-            margin-top: 6px;
-            letter-spacing: 0.05em;
-        }
-        .thanks {
-            text-align: center;
-            color: #000 !important;
-            font-size: 1.2em;
-            margin-top: 18px;
-            letter-spacing: 0.8px;
-            line-height: 1.6;
-            font-weight: 600;
-        }
-        .contact {
-            text-align: center;
-            color: #000 !important;
-            font-size: 1.05em;
-            margin-top: 8px;
-            letter-spacing: 0.05em;
-            line-height: 1.5;
-            margin-bottom: 120px !important; /* 不靠这个来腾空白，仅做冗余 */
-        }
+  /* —— 数字列的等宽数字特性（对齐由下面精确规则控制） —— */
+  th.amount,td.amount{
+    white-space:nowrap;
+    font-variant-numeric:tabular-nums lining-nums; font-feature-settings:"tnum" 1,"lnum" 1;
+    letter-spacing:.2px;
+  }
+  th.amount:last-child,td.amount:last-child{ padding-right:12px; }
+  .num{ display:inline-block; padding-right:6px; }
 
-        /* 永远保留 ≥3cm 底部空白，避免 html2image 裁切地址 */
-        .tail-blank { height: calc(3 * var(--cm)); }
+  /* 默认多行从顶部开始 */
+  th, td { vertical-align: top; }
 
-        /* 浏览器打印时再留更大的右页边距；html2image 不一定生效 */
-        @page { size: 79mm auto; margin: 0 2mm; }
-    </style>
+  /* ✅ 修改点：对齐规则（满足你的新要求）
+     第2、3列：上下左右居中
+     第4列：垂直居中 + 水平右对齐
+  */
+  thead th:nth-child(2),
+  tbody td:nth-child(2),
+  thead th:nth-child(3),
+  tbody td:nth-child(3){
+    text-align:center !important;
+    vertical-align:middle !important;
+  }
+  thead th:nth-child(4),
+  tbody td:nth-child(4){
+    text-align:right !important;
+    vertical-align:middle !important;
+  }
+
+  /* 商品名可断行 */
+  .name-cell{ white-space:normal!important; word-break:break-word; overflow-wrap:anywhere; hyphens:auto; }
+
+  /* =============== totals 容器 =============== */
+  .totals{
+    display:grid;
+    grid-auto-rows:min-content;
+    row-gap:10px;
+    margin-top:12px;
+    position:relative;
+    isolation:isolate;
+    background:#fff;
+    padding-top:2px;
+  }
+
+  .vat-row,.footer{
+    display:flex; justify-content:flex-end; align-items:baseline; gap:.6em; text-align:right; flex-wrap:nowrap;
+  }
+  .vat-row{
+    font-size:1.12em; font-weight:700; color:#000!important;
+    margin:0; line-height:1.6; clear:both; background:#fff;
+  }
+  .vat-row .vat-label{ font-weight:700; color:#000!important; }
+
+  .footer{
+    font-size:1.25em; font-weight:800; letter-spacing:.6px;
+    margin-top:4px;
+    padding-top:6px;
+    border-top:1px dashed #000; /* 视觉分隔 */
+    background:#fff;
+  }
+  .footer .total-label{ font-weight:800; }
+  .footer .num{ font-size:1.3em; color:#000!important; }
+
+  .vat-notice{
+    text-align:right; font-size:1.1em; color:#000!important; font-weight:600; margin:4px 0 0; background:#fff;
+  }
+
+  .thanks{ text-align:center; color:#000!important; font-size:1.3em; margin-top:18px; letter-spacing:.8px; line-height:1.6; font-weight:600; }
+  .contact{ text-align:center; color:#000!important; font-size:1.3em; margin-top:6px; line-height:1.5; margin-bottom:8px; }
+
+  /* 尾部固定保留 2cm 空白 */
+  .tail-blank{ height:calc(2 * var(--cm)); }
+
+  /* 打印宽度 79mm 保持不变 */
+  @page{ size:79mm auto; margin:0 2mm; }
+</style>
 </head>
 <body>
-    <div class="receipt">
-      <div class="inner">
-        <div class="top-blank"></div>
+  <div class="receipt"><div class="inner">
+    <div class="top-blank"></div>
 
-        <div class="logo-container">
-            <img src="{{ url_for('static', filename='TREASURE.png') }}" alt="Treasure Island">
-        </div>
-
-        <div class="meta">
-            <span>
-                {{ texts['order'] if texts.get('order') else '주문번호 Order' }}: <b>{{ sale_id }}</b>
-            </span>
-            <span>
-                {{ texts['date'] if texts.get('date') else '날짜 Date' }}: {{ time }}
-            </span>
-        </div>
-
-        <hr>
-
-        <table>
-            <!-- 用 colgroup 精准分配列宽：更多宽度给合计列 -->
-            <colgroup>
-                <col style="width:25%">
-                <col style="width:13%">
-                <col style="width:27%">
-                <col style="width:35%">
-            </colgroup>
-            <thead>
-                <tr>
-                    <th>{{ texts['product'] if texts.get('product') else '상품 Product' }}</th>
-                    <th>{{ texts['qty'] if texts.get('qty') else '수량 Qty' }}</th>
-                    <th class="amount">{{ texts['price'] if texts.get('price') else '단가 Price' }}</th>
-                    <th class="amount">{{ texts['subtotal'] if texts.get('subtotal') else '합계 Subtotal' }}</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for bc, item in items.items() %}
-                <tr>
-                    <td class="name-cell">{{ item.name }}</td>
-                    <td>{{ item.qty }}</td>
-                    <!-- 不换行显示 + 右侧安全区 -->
-                    <td class="amount"><span class="num">₩{{ '{:.0f}'.format(item.price) }}</span></td>
-                    <td class="amount"><span class="num">₩{{ '{:.0f}'.format(item.qty * item.price) }}</span></td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-
-        <hr>
-
-        {% if pay_type == "card" %}
-            <div class="vat-row">
-                <span class="vat-label">부가가치세(VAT 10%):</span>
-                <span class="num">₩{{ '{:.0f}'.format(vat) }}</span>
-            </div>
-        {% endif %}
-
-        <div class="footer">
-            {{ texts['total'] if texts.get('total') else '총액 Total' }}:
-            <span class="num">₩{{ '{:.0f}'.format(total) }}</span>
-        </div>
-
-        {% if pay_type == "cash" %}
-            <div class="vat-notice">
-                VAT 별도 / VAT not included / 不含增值税
-            </div>
-        {% endif %}
-
-        <div class="thanks">
-            {{ texts['thank'] if texts.get('thank') else '감사합니다! Thank you!' }}
-        </div>
-        <div class="contact">
-            {{ texts['contact'] if texts.get('contact') else 'Contact' }}: 010-7757-9705<br>
-            서울(Seoul), DDP 3F, 02
-        </div>
-
-        <!-- 固定 3cm 尾部空白，防止任何情况下地址被裁掉 -->
-        <div class="tail-blank"></div>
-      </div><!-- .inner -->
+    <div class="logo-container">
+      <img src="{{ url_for('static', filename='TREASURE.png') }}" alt="Treasure Island">
     </div>
+
+    <div class="meta">
+      <span>{{ texts.get('order','주문번호 Order') }}: <b>{{ sale_id }}</b></span>
+      <span>{{ texts.get('date','날짜 Date') }}: {{ time }}</span>
+    </div>
+
+    <hr>
+
+    <table>
+      <colgroup>
+        <col style="width:25%"><col style="width:15%"><col style="width:25%"><col style="width:35%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>{{ texts.get('product','상품 Product') }}</th>
+          <th>{{ texts.get('qty','수량 Qty') }}</th>
+          <th class="amount">{{ texts.get('priceforreceipt', texts.get('price','단가 Price')) }}</th>
+          <th class="amount">{{ texts.get('subtotal','합계 Subtotal') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for bc, item in items.items() %}
+        <tr>
+          <td class="name-cell">{{ item.name }}</td>
+          <td>{{ item.qty }}</td>
+          <td class="amount"><span class="num">₩{{ '{:.0f}'.format(item.price) }}</span></td>
+          <td class="amount"><span class="num">₩{{ '{:.0f}'.format(item.qty * item.price) }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="totals">
+      {% if pay_type == "card" %}
+        <div class="vat-row">
+          <span class="vat-label">부가가치세 (VAT 10%):</span>
+          <span class="num">₩{{ '{:.0f}'.format(vat) }}</span>
+        </div>
+      {% endif %}
+
+      <div class="footer">
+        <span class="total-label">{{ texts.get('total','총액 Total') }}:</span>
+        <span class="num">₩{{ '{:.0f}'.format(total) }}</span>
+      </div>
+
+      {% if pay_type == "cash" %}
+        <div class="vat-notice">VAT 별도 / VAT not included / 不含增值税</div>
+      {% endif %}
+    </div>
+
+    <div class="thanks">{{ texts.get('thank','감사합니다! Thank you!') }}</div>
+    <div class="contact">{{ texts.get('contact','Contact') }}: 010-7757-9705<br>서울(Seoul), DDP 3F, 02</div>
+
+    <div class="tail-blank"></div>
+  </div></div>
 </body>
 </html>
