@@ -1,4 +1,5 @@
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 <div align="center">
   
 <img src="static/TREASURE.png" alt="TreasurePOS" width="260"/>
@@ -317,6 +318,21 @@ printer_name = "ZDesigner ZD230-203dpi ZPL"
 ```
 흑백 임계값(`image_to_zpl`):
 =======
+=======
+<<<<<<< HEAD
+# TreasurePOS · Flask + SQLite POS (KR/ZH/EN)
+
+> **Languages / 语言 / 언어** · Jump to: [English](#english) · [中文](#中文) · [한국어](#한국어)
+=======
+TreasurePOS (Flask + Desktop WebView)
+
+KO/ZH/EN local-first POS for small shops. Scan barcodes, switch retail/wholesale price, checkout by cash/card, keep stock logs, view sales analytics (heatmap/aggregation), and print Zebra receipts (ZPL).
+
+语言 | 언어 | Language
+中文 • 한국어 • English
+>>>>>>> 333e062b556166ffb20c9d7cd836b8f3bc617baa
+
+>>>>>>> Stashed changes
 目录 · Table of Contents · 목차
 
 <<<<<<< HEAD
@@ -1163,11 +1179,15 @@ printer_name = "ZDesigner ZD230-203dpi ZPL"
 ```
 
 **흑백 임계값 조정**(`image_to_zpl`):
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 ```python
 threshold = 200  # 190~220 권장
 ```
 
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 ### 10) 영수증 레이아웃 조정
 - 용지 폭: `--paper-w: 624px;`  
@@ -1184,6 +1204,8 @@ threshold = 200  # 190~220 권장
 ### 11) 보안 / 12) 문제 해결 / 13) FAQ / 14) 라이선스
 영문과 동일.
 =======
+=======
+>>>>>>> Stashed changes
 ### 영수증 레이아웃 미세 조정
 `templates/receipt.html`의 CSS:
 - 용지 폭: `--paper-w: 624px` (79mm @ 203dpi)
@@ -1288,4 +1310,7 @@ License
 
 Apache-2.0
 >>>>>>> 333e062b556166ffb20c9d7cd836b8f3bc617baa
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
