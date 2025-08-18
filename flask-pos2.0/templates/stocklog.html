@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ texts['stockio'] if texts.get('stockio') else '입출고 작업' }}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <style>
+    :root{
+      --brand:#6c7ae0;
+      --brand-weak:#e7e9fb;
+      --ink:#222;
+      --ink-2:#555;
+      --ink-3:#888;
+      --panel:#ffffff;
+      --bg:#f6f8fa;
+      --ok:#1a803d;
+      --warn:#c49609;
+      --danger:#d13c3c;
+      --muted:#eaeef3;
+    }
+    body{ background: var(--bg); color:var(--ink); }
+    .container{ max-width: 980px; }
+    .card-like{ background:var(--panel); border-radius:16px; box-shadow:0 3px 12px #0001; padding:18px; }
+    .title-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .title-row h2{ margin:0; font-size:1.45rem; font-weight:800; letter-spacing:.2px;}
+    .muted{ color:var(--ink-3); }
+    .help{ font-size:.92rem; color:var(--ink-2); }
+    .mode-toggle .btn{ min-width:110px; }
+    .mode-in.active{ background:#e8f6ee; color:#0f6f34; border-color:#bde6cc; }
+    .mode-out.active{ background:#fff1f1; color:#b02a37; border-color:#f3c3c3; }
+    .stepper .btn{ min-width:56px; }
+    .pill{ border-radius:999px; padding:.15rem .55rem; font-size:.85rem; }
+    .pill-in{ background:#e8f6ee; color:#0f6f34; }
+    .pill-out{ background:#fff1f1; color:#b02a37; }
+    .preview-box{ background: #fafbfe; border:1px dashed #dfe3ec; border-radius:12px; padding:10px 12px; }
+    .product-img{ width:72px; height:72px; object-fit:cover; border-radius:10px; border:1px solid #eee; }
+    .status-badge{ font-size:.78rem; padding:2px 8px; border-radius:10px; }
+    .badge-onsale{ background:#e6f6e1; color:#208c38; }
+    .badge-soldout{ background:#ffdfdf; color:#d13c3c; }
+    .badge-discontinued{ background:#e1e1e1; color:#888; }
+    .recent-table td, .recent-table th{ font-size:.95rem; vertical-align:middle; }
+    .kbd{ background:#f1f3f7; border-radius:6px; padding:2px 6px; border:1px solid #e5e8ef; font-size:.86rem;}
+    @media (max-width: 576px){
+      .mode-toggle{ width:100%; }
+      .mode-toggle .btn{ flex:1; }
+      .stepper{ gap:6px !important; }
+    }
+  </style>
+</head>
+<body class="container py-4">
+  <!-- 顶部导航（与其它页面统一，无语言切换） -->
+  <nav class="mb-3 d-flex align-items-center">
+    <a href="/" class="btn btn-link">{{ texts['title'] }}</a>
+    <a href="/manage" class="btn btn-link">{{ texts['manage'] }}</a>
+    <a href="/sales" class="btn btn-link">{{ texts['sales'] }}</a>
+    <a href="/stocklog" class="btn btn-link">{{ texts['stocklog'] }}</a>
+    <a href="/settings" class="btn btn-link ms-auto">{{ texts['setting'] }}</a>
+  </nav>
+
+  <div class="title-row mb-3">
+    <h2>{{ texts['stockio'] if texts.get('stockio') else '상품 입출고' }}</h2>
+    <div class="help">
+      <span class="kbd">Enter</span> {{ texts.get('search','搜索/검색') }} ·
+      <span class="kbd">↑/↓</span> {{ texts.get('qty','数量/수량') }} ·
+      <span class="kbd">Ctrl+Enter</span> {{ texts.get('submit','提交/제출') }}
+    </div>
+  </div>
+
+  <!-- 表单卡片 -->
+  <div class="card-like mb-3">
+    <form class="row g-3" onsubmit="submitIO(event)" novalidate>
+      <!-- 模式切换（入/出库） -->
+      <div class="col-12 d-flex align-items-center justify-content-between">
+        <div class="mode-toggle btn-group" role="group" aria-label="IO Mode">
+          <button type="button" id="btnModeIn" class="btn btn-outline-success mode-in active" onclick="setMode('in')">
+            ✅ {{ texts['stock_in'] if texts.get('stock_in') else '입고' }}
+          </button>
+          <button type="button" id="btnModeOut" class="btn btn-outline-danger mode-out" onclick="setMode('out')">
+            ↘️ {{ texts['stock_out'] if texts.get('stock_out') else '출고' }}
+          </button>
+        </div>
+
+        <!-- 扫码快速模式 -->
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="scanFast" checked>
+          <label class="form-check-label" for="scanFast">{{ texts.get('scan_fast','扫码快速模式（数量=1，回车即提交）') }}</label>
+        </div>
+      </div>
+
+      <!-- 条码 + 数量 -->
+      <div class="col-md-7">
+        <label class="form-label">{{ texts['barcode'] if texts.get('barcode') else '바코드' }}</label>
+        <input type="text" class="form-control" id="barcodeInput" placeholder="{{ texts.get('barcode_placeholder','请扫描或输入条码') }}" required autofocus autocomplete="off">
+      </div>
+      <div class="col-md-5">
+        <label class="form-label d-flex align-items-center justify-content-between">
+          <span>{{ texts['qty'] if texts.get('qty') else '수량' }}</span>
+          <span class="muted">{{ texts.get('positive_only','正整数') }}</span>
+        </label>
+        <div class="d-flex align-items-center gap-2 stepper">
+          <input type="number" class="form-control" id="qtyInput" required min="1" step="1" value="1" inputmode="numeric" autocomplete="off">
+          <div class="btn-group" role="group" aria-label="step">
+            <button type="button" class="btn btn-outline-secondary" onclick="bump(-10)">-10</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="bump(-5)">-5</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="bump(-1)">-1</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="bump(+1)">+1</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="bump(+5)">+5</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="bump(+10)">+10</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 商品信息 + 预览 -->
+      <div class="col-12">
+        <div class="preview-box d-flex align-items-center gap-3">
+          <img id="pImg" class="product-img d-none" alt="">
+          <div class="flex-grow-1">
+            <div id="pName" class="fw-bold"></div>
+            <div class="muted" id="pBarcode"></div>
+            <div class="mt-1">
+              <span id="pStatus" class="status-badge d-none"></span>
+              <span class="ms-2">
+                {{ texts.get('current_stock','当前库存') }}:
+                <b id="pStock">-</b>
+                <span id="pPreview" class="ms-2"></span>
+              </span>
+            </div>
+          </div>
+          <div>
+            <button type="submit" class="btn btn-primary" id="submitBtn" aria-label="{{ texts.get('submit','提交/제출') }}">
+              {{ texts['submit'] if texts.get('submit') else '제출' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 提示 -->
+      <div class="col-12" id="msg" aria-live="polite"></div>
+    </form>
+  </div>
+
+  <!-- 最近操作（本地记录，刷新即清空） -->
+  <div class="card-like">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h6 class="mb-0">{{ texts.get('recent_ops','最近操作') }}</h6>
+      <a class="btn btn-sm btn-link" href="/stocklog">{{ texts.get('stocklog','出入库管理') }}</a>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm recent-table">
+        <thead class="table-light">
+          <tr>
+            <th style="width:120px">{{ texts.get('date','日期/날짜') }}</th>
+            <th>{{ texts.get('barcode','条码/바코드') }}</th>
+            <th>{{ texts.get('product','商品/상품') }}</th>
+            <th>{{ texts.get('io_type','类型/유형') }}</th>
+            <th class="text-end">{{ texts.get('qty','数量/수량') }}</th>
+            <th class="text-end">{{ texts.get('stock','库存/재고') }}</th>
+          </tr>
+        </thead>
+        <tbody id="recentTbody"><tr><td colspan="6" class="text-muted">{{ texts.get('no_data','暂无数据') }}</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const T = {{ texts|tojson }};
+    let mode = 'in'; // in / out
+    let product = null; // 当前条码商品信息
+    let fetchSeq = 0;   // 防并发：只处理最近一次查询
+    const el = id => document.getElementById(id);
+
+    // --- 初始化 ---
+    window.addEventListener('load', () => {
+      el('barcodeInput').focus();
+      el('barcodeInput').addEventListener('keydown', onBarcodeKeydown);
+      el('barcodeInput').addEventListener('change', fetchProduct);
+      el('qtyInput').addEventListener('input', updatePreview);
+      document.addEventListener('keydown', globalHotkeys);
+    });
+
+    function setMode(m){
+      mode = m;
+      el('btnModeIn').classList.toggle('active', m==='in');
+      el('btnModeOut').classList.toggle('active', m==='out');
+      updatePreview();
+    }
+
+    function bump(delta){
+      const v = Math.max(1, (parseInt(el('qtyInput').value || '1',10) + delta));
+      el('qtyInput').value = v;
+      updatePreview();
+    }
+
+    async function onBarcodeKeydown(e){
+      if(e.key === 'Enter'){
+        e.preventDefault();
+        if(el('scanFast').checked){
+          // 快速模式：数量强制为 1，先查商品再自动提交（查不到则不提交）
+          el('qtyInput').value = 1;
+          const ok = await fetchProduct();
+          if(ok) submitIO();
+        }else{
+          // 普通：回车 = 查询商品
+          fetchProduct();
+        }
+      }
+    }
+
+    function globalHotkeys(e){
+      if(document.activeElement === el('qtyInput')){
+        if(e.key === 'ArrowUp'){ bump(+1); }
+        if(e.key === 'ArrowDown'){ bump(-1); }
+      }
+      if(e.ctrlKey && e.key === 'Enter'){
+        submitIO(e);
+      }
+    }
+
+    function setMsg(type, text){
+      const box = el('msg');
+      box.innerHTML = '';
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${type} py-2 mb-0`;
+      alert.setAttribute('role','status');
+      alert.textContent = String(text || '');
+      box.appendChild(alert);
+    }
+    function clearMsg(){ el('msg').innerHTML = ''; }
+
+    async function fetchProduct(){
+      const bc = el('barcodeInput').value.trim();
+      if(!bc){ return false; }
+      const mySeq = ++fetchSeq;
+      setMsg('info', T.loading || 'Loading...');
+      try{
+        const r = await fetch(`/api/item/${encodeURIComponent(bc)}`);
+        if(mySeq !== fetchSeq) return false; // 已有新请求，丢弃旧响应
+        if(!r.ok){ throw new Error('not found'); }
+        const j = await r.json();
+        product = j;
+        renderProduct(j);
+        clearMsg();
+        updatePreview();
+        return true;
+      }catch(err){
+        if(mySeq !== fetchSeq) return false;
+        product = null;
+        renderProduct(null);
+        setMsg('danger', (T.no_product || 'No product') + ` (${bc})`);
+        updatePreview();
+        return false;
+      }
+    }
+
+    function renderProduct(p){
+      if(!p){
+        el('pImg').classList.add('d-none');
+        el('pImg').src = '';
+        el('pName').textContent = '';
+        el('pBarcode').textContent = '';
+        el('pStatus').className = 'status-badge d-none';
+        el('pStock').textContent = '-';
+        el('pPreview').innerHTML = '';
+        return;
+      }
+      if(p.image){
+        el('pImg').src = `/static/${p.image}`;
+        el('pImg').classList.remove('d-none');
+      }else{
+        el('pImg').classList.add('d-none');
+      }
+      el('pName').textContent = p.name || p.barcode;
+      el('pBarcode').textContent = p.barcode;
+      // 状态徽章
+      let cls = 'badge-onsale', txt = (T.normal || '正常');
+      if(p.status === '매진' || Number(p.qty||0) === 0){ cls = 'badge-soldout'; txt = (T.soldout || '售罄'); }
+      if(p.status === '절판'){ cls = 'badge-discontinued'; txt = (T.discontinued || '已下架'); }
+      el('pStatus').className = `status-badge ${cls}`;
+      el('pStatus').textContent = txt;
+      el('pStatus').classList.remove('d-none');
+      el('pStock').textContent = Number(p.qty||0);
+    }
+
+    function updatePreview(){
+      const q = Math.max(1, parseInt(el('qtyInput').value || '1',10));
+      if(product){
+        const delta = (mode==='in' ? q : -q);
+        const newQty = Number(product.qty||0) + delta;
+        const pill = (mode==='in'
+          ? `<span class="pill pill-in">+${q}</span>`
+          : `<span class="pill pill-out">-${q}</span>`);
+        const after = `{{ texts.get('after','调整后') or 'After' }}`;
+        const qtyHtml = newQty < 0
+          ? `<b class="text-danger">${newQty}</b>`
+          : `<b>${newQty}</b>`;
+        el('pPreview').innerHTML = `${pill} → ${after}: ${qtyHtml}`;
+      }else{
+        el('pPreview').innerHTML = '';
+      }
+    }
+
+    async function submitIO(e){
+      if(e){ e.preventDefault(); }
+      const barcode = el('barcodeInput').value.trim();
+      let qty = parseInt(el('qtyInput').value || '0', 10);
+      if(!barcode || qty<=0){
+        setMsg('danger', T.fill_all || '모두 입력해 주세요');
+        return;
+      }
+      // 前端兜底：出库时超库存直接拦截，避免错误提交
+      if(mode==='out' && product && qty > Number(product.qty||0)){
+        setMsg('danger', T.exceed_stock || '超出库存，无法出库');
+        return;
+      }
+
+      const btn = el('submitBtn');
+      btn.disabled = true; btn.innerHTML = `{{ texts.get('submitting','提交中…') or 'Submitting…' }}`;
+      try{
+        const r = await fetch('/api/stockio', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ barcode, change: qty, type: mode })
+        });
+        const j = await r.json();
+        if(r.ok && j.msg === 'ok'){
+          setMsg('success', T.success || '작업 성공!');
+          // 更新当前商品库存显示
+          if(product && product.barcode === barcode){
+            product.qty = j.new_qty;
+            renderProduct(product);
+            updatePreview();
+          }
+          pushRecent({
+            time: new Date().toLocaleString(),
+            barcode,
+            name: product ? product.name : '',
+            type: mode,
+            qty: qty,
+            stock: j.new_qty
+          });
+          // 快速模式自动清空/复位
+          if(el('scanFast').checked){
+            el('barcodeInput').value = '';
+            el('qtyInput').value = 1;
+            product = null;
+            renderProduct(null);
+            el('barcodeInput').focus();
+          }
+        }else{
+          setMsg('danger', (j.msg || 'error'));
+        }
+      }catch(err){
+        setMsg('danger', 'Network error');
+      }finally{
+        btn.disabled = false; btn.innerHTML = (T.submit || '제출');
+      }
+    }
+
+    function pushRecent(rec){
+      const tb = el('recentTbody');
+      if(tb.children.length && tb.children[0].querySelector('.text-muted')) tb.innerHTML='';
+      const tr = document.createElement('tr');
+
+      const tdTime = document.createElement('td'); tdTime.textContent = rec.time;
+      const tdBc   = document.createElement('td'); tdBc.textContent = rec.barcode;
+      const tdName = document.createElement('td'); tdName.textContent = rec.name || '-';
+
+      const tdType = document.createElement('td');
+      const pill = document.createElement('span');
+      pill.className = 'pill ' + (rec.type==='in' ? 'pill-in' : 'pill-out');
+      pill.textContent = (rec.type==='in') ? (T.stock_in || '입고') : (T.stock_out || '출고');
+      tdType.appendChild(pill);
+
+      const tdQty = document.createElement('td'); tdQty.className='text-end'; tdQty.textContent = rec.qty;
+      const tdStock = document.createElement('td'); tdStock.className='text-end'; tdStock.textContent = rec.stock;
+
+      tr.append(tdTime, tdBc, tdName, tdType, tdQty, tdStock);
+      tb.prepend(tr);
+
+      // 只保留最近20条
+      while(tb.children.length > 20){ tb.removeChild(tb.lastChild); }
+    }
+  </script>
+</body>
+</html>

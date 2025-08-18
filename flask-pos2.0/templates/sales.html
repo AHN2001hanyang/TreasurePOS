@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ texts['sales'] }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { background: #f6f8fa; }
+        .chart-container { background: #fff; border-radius: 16px; box-shadow: 0 3px 12px #0001; padding: 30px 22px 22px 22px; margin-bottom: 30px;}
+        .stat-header { display:flex; align-items:center; flex-wrap:wrap; gap: 20px; }
+        .stat-header .form-label { margin-bottom: 0; }
+        .top10-list { padding-left: 0; list-style: none; }
+        .top10-list li { border-bottom: 1px dashed #eee; padding:7px 0; font-size: 1.07em; display:flex; align-items:center; }
+        .top10-list li:last-child { border-bottom:none; }
+        .badge-rank { background:#2271d1; color:#fff; font-size: 0.97em; min-width:32px; margin-right: 8px;}
+        .table th, .table td { vertical-align: middle !important; }
+        .pointer { cursor: pointer; }
+        .icon-btn { background: none; border: none; padding: 0 6px; color: #d9534f; font-size: 1.2em;}
+        .page-size-select { width: 90px; display: inline-block; margin-left: 10px;}
+        .stat-summary {font-size:1.16em;color:#555;}
+        .stat-summary strong{color:#222;}
+        .refunded-row { background: #fff7f7 !important; }
+        .refunded-badge { color: #d9534f; background: #f5c6cb; font-size: .9em; }
+        .badge-type {background:#f6ecfa; color:#814ae3; margin-left:5px; font-size:.97em;}
+        .badge-size {background:#f5faf6; color:#1a803d; margin-left:4px; font-size:.95em;}
+        .badge-cat {background:#eef4fa; color:#2979b6; margin-left:3px; font-size:.95em;}
+        .badge-pay {margin-left:2px; font-size:0.95em; vertical-align:middle;}
+        .pay-cash {background:#f9e2ae; color:#c49609;}
+        .pay-card {background:#e2f0ff; color:#147ddb;}
+        .btn-pay-filter .active { font-weight: bold; }
+
+        /* ==== 热力图样式（灰阶） ==== */
+        .heat-controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+        .heat-legend { display:flex; align-items:center; gap:8px; font-size: .9em; color:#666;}
+        .legend-bar { width:160px; height:12px; border-radius: 6px; background: linear-gradient(90deg, #f1f3f5 0%, #adb5bd 50%, #343a40 100%); border:1px solid #e9ecef; }
+        .heatmap-wrap { position: relative; overflow:auto; }
+        .heatmap-canvas { width:100%; max-width:100%; border-radius: 10px; border:1px solid #eef2f4; background:#fff; }
+        .heatmap-tooltip { position:absolute; pointer-events:none; background:#212529; color:#fff; padding:6px 8px; border-radius:6px; font-size:12px; opacity:0; transform: translate(-50%, -120%); white-space:nowrap; z-index:5; }
+        @media (max-width: 900px){
+            .chart-container {padding:14px;}
+        }
+        @media (max-width: 600px){
+            .chart-container, .bg-white {padding:6px 2px;}
+            .stat-header {gap: 8px;}
+        }
+    </style>
+</head>
+<body class="container py-4">
+    <nav class="mb-3">
+      <a href="/" class="btn btn-link">{{ texts['title'] }}</a>
+      <a href="/manage" class="btn btn-link">{{ texts['manage'] }}</a>
+      <a href="/sales" class="btn btn-link fw-bold text-primary">{{ texts['sales'] }}</a>
+      <a href="/settings" class="btn btn-link">{{ texts['setting'] if texts.get('setting') else '설정' }}</a>
+    </nav>
+    <h2 class="mb-4"><i class="bi bi-bar-chart-steps me-2"></i>{{ texts['sales'] }}</h2>
+
+    <!-- 筛选支付方式 -->
+    <div class="mb-3 d-flex gap-2 align-items-center btn-pay-filter">
+        <span style="font-weight:bold;">{{ texts.get('pay_type', '结算方式') }}:</span>
+        <button class="btn btn-outline-secondary btn-sm active" onclick="setPayFilter('all',this)">{{ texts.get('all','All') }}</button>
+        <button class="btn btn-outline-primary btn-sm" onclick="setPayFilter('card',this)"><i class="bi bi-credit-card-2-front"></i> {{ texts.get('card','Card') }}</button>
+        <button class="btn btn-outline-warning btn-sm" onclick="setPayFilter('cash',this)"><i class="bi bi-cash"></i> {{ texts.get('cash','Cash') }}</button>
+    </div>
+
+    <!-- 统计区（折线 + 柱） -->
+    <div class="chart-container mb-4">
+        <div class="stat-header mb-3">
+            <div>
+                <label class="form-label">{{ texts['stats'] if texts.get('stats') else '统计类型:' }}</label>
+                <select id="statType" class="form-select form-select-sm d-inline-block ms-2" style="width:120px;" onchange="loadChart()">
+                    <option value="day">{{ texts['day'] if texts.get('day') else '按日' }}</option>
+                    <option value="week">{{ texts['week'] if texts.get('week') else '按周' }}</option>
+                    <option value="month">{{ texts['month'] if texts.get('month') else '按月' }}</option>
+                    <option value="year">{{ texts['year'] if texts.get('year') else '按年' }}</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">{{ texts['period'] if texts.get('period') else '时间段:' }}</label>
+                <input type="date" id="statStart" class="form-control form-control-sm d-inline-block" style="width:135px;">
+                <span>~</span>
+                <input type="date" id="statEnd" class="form-control form-control-sm d-inline-block" style="width:135px;">
+                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="loadChart(); loadHeatmap();">
+                    <i class="bi bi-funnel"></i> {{ texts['filter'] if texts.get('filter') else '筛选' }}
+                </button>
+            </div>
+            <div class="ms-auto">
+                <span class="stat-summary" id="statSummary"></span>
+            </div>
+        </div>
+        <canvas id="salesChart" style="max-width:100%;min-height:260px;"></canvas>
+    </div>
+
+    <!-- 新增：时段 × 星期 热力图 -->
+    <div class="chart-container mb-4">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-grid-3x3-gap-fill text-secondary"></i>
+                <span style="font-size:1.08em;font-weight:600;">{{ texts.get('heatmap_title','星期×时段 热力图') }}</span>
+            </div>
+            <div class="heat-controls">
+                <label class="form-label mb-0">{{ texts.get('metric','指标') }}:</label>
+                <select id="heatMetric" class="form-select form-select-sm" style="width:140px;">
+                    <option value="orders">{{ texts.get('metric_orders','订单数') }}</option>
+                    <option value="sales">{{ texts.get('metric_sales','销售额') }}</option>
+                    <option value="items">{{ texts.get('metric_items','件数') }}</option>
+                </select>
+                <div class="heat-legend">
+                    <span>{{ texts.get('low','Low') }}</span>
+                    <div class="legend-bar"></div>
+                    <span>{{ texts.get('high','High') }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="heatmap-wrap">
+            <canvas id="heatmapHourWeek" class="heatmap-canvas"></canvas>
+            <div id="heatTooltip" class="heatmap-tooltip"></div>
+        </div>
+        <div class="mt-2 text-muted" id="heatSummary" style="font-size:.95em;"></div>
+    </div>
+
+    <!-- 热销商品榜 -->
+    <div class="chart-container mb-4">
+        <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-trophy-fill text-warning fs-5 me-2"></i>
+            <span style="font-size:1.17em;">{{ texts['top10'] if texts.get('top10') else '판매량 TOP10 상품' }}</span>
+        </div>
+        <ol class="top10-list" id="top10List"></ol>
+    </div>
+
+    <!-- 销售记录表格 -->
+    <div class="bg-white rounded-3 p-3 shadow-sm mb-4">
+    <div class="mb-3 d-flex align-items-center">
+        <button class="btn btn-outline-danger" onclick="deleteSelected()" id="btn_delete_selected">
+            <i class="bi bi-trash"></i> {{ texts['delete_selected'] if texts.get('delete_selected') else '选择删除' }}
+        </button>
+        <button class="btn btn-outline-warning ms-2" onclick="showRefundModal()" id="btn_refund_selected">
+            <i class="bi bi-arrow-counterclockwise"></i> {{ texts['refund'] if texts.get('refund') else '退款' }}
+        </button>
+        <a href="/export/sales" class="btn btn-outline-primary ms-auto" id="btn_export" target="_blank" rel="noopener">
+            <i class="bi bi-file-earmark-excel"></i> {{ texts['export'] if texts.get('export') else '导出Excel' }}
+        </a>
+    </div>
+    <table class="table table-bordered table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th style="width:38px;"><input type="checkbox" id="checkAll" onclick="toggleAll(this)"></th>
+                <th>#</th>
+                <th>{{ texts['date'] if texts.get('date') else '时间' }}</th>
+                <th>{{ texts['pay_type'] if texts.get('pay_type') else '支付方式' }}</th>
+                <th>{{ texts['product_detail'] if texts.get('product_detail') else '商品详情' }}</th>
+                <th>{{ texts['total'] if texts.get('total') else '总金额' }}</th>
+            </tr>
+        </thead>
+        <tbody id="saleTable"></tbody>
+    </table>
+    <div class="d-flex justify-content-between align-items-center my-2">
+        <nav>
+            <ul class="pagination pagination-sm mb-0" id="paginationBar"></ul>
+        </nav>
+        <div>
+            <label for="pageSizeSel" class="me-1">{{ texts['per_page'] if texts.get('per_page') else '每页' }}</label>
+            <select id="pageSizeSel" class="form-select form-select-sm page-size-select">
+                <option value="10">10</option>
+                <option value="20" selected>20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+            <span id="pageInfo" class="ms-2"></span>
+        </div>
+    </div>
+    </div>
+
+    <!-- 删除弹窗 -->
+    <div class="modal" tabindex="-1" id="deleteModal">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form id="deleteForm">
+            <div class="modal-header">
+              <h5 class="modal-title">{{ texts['confirm_delete'] if texts.get('confirm_delete') else '确定删除该记录吗？' }}</h5>
+              <button type="button" class="btn-close" onclick="closeDeleteModal()"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-2">{{ texts['delete_reason'] if texts.get('delete_reason') else '请选择删除原因：' }}</div>
+              <div>
+                <input type="radio" id="reason_mistake" name="del_reason" value="mistake" checked>
+                <label for="reason_mistake">{{ texts['mistake'] if texts.get('mistake') else '操作失误' }}</label>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-primary" type="submit" id="btn_confirm">
+                {{ texts['confirm'] if texts.get('confirm') else '确认' }}
+              </button>
+              <button class="btn btn-secondary" type="button" onclick="closeDeleteModal()" id="btn_cancel">{{ texts['cancel'] if texts.get('cancel') else '取消' }}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- 退款弹窗 -->
+    <div class="modal" tabindex="-1" id="refundModal">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form id="refundForm">
+            <div class="modal-header">
+              <h5 class="modal-title">{{ texts['refund'] if texts.get('refund') else '退款' }}</h5>
+              <button type="button" class="btn-close" onclick="closeRefundModal()"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-2">{{ texts['select_reason'] if texts.get('select_reason') else '选择退款原因：' }}</div>
+              <div>
+                <input type="radio" id="refund_defect" name="refund_reason" value="有瑕疵" checked>
+                <label for="refund_defect">{{ texts['refund_defect'] if texts.get('refund_defect') else '有瑕疵' }}</label>
+              </div>
+              <div>
+                <input type="radio" id="refund_notfit" name="refund_reason" value="不合身">
+                <label for="refund_notfit">{{ texts['refund_notfit'] if texts.get('refund_notfit') else '不合身' }}</label>
+              </div>
+              <div>
+                <input type="radio" id="refund_no_reason" name="refund_reason" value="无理由退货">
+                <label for="refund_no_reason">{{ texts['refund_no_reason'] if texts.get('refund_no_reason') else '无理由退货' }}</label>
+              </div>
+              <div>
+                <input type="radio" id="refund_dislike" name="refund_reason" value="不喜欢">
+                <label for="refund_dislike">{{ texts['refund_dislike'] if texts.get('refund_dislike') else '不喜欢' }}</label>
+              </div>
+              <div>
+                <input type="radio" id="refund_other" name="refund_reason" value="其他">
+                <label for="refund_other">{{ texts['refund_other'] if texts.get('refund_other') else '其他' }}</label>
+                <input type="text" class="form-control mt-2" id="refund_other_detail" placeholder="{{ texts['refund_other_detail'] if texts.get('refund_other_detail') else '请填写其他原因（选填）' }}">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-warning" type="submit" id="btn_confirm_refund">
+                {{ texts['confirm'] if texts.get('confirm') else '确认' }}
+              </button>
+              <button class="btn btn-secondary" type="button" onclick="closeRefundModal()" id="btn_cancel_refund">{{ texts['cancel'] if texts.get('cancel') else '取消' }}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        /* ===== 文案与分类本地化映射（含旧码 pants→bottom 兼容） ===== */
+        // 统一类别字典：覆盖后端主码 + 兼容旧导入(pants→bottom)，并按页面语言本地化
+        window.categoryDict = {
+            bag: "{{ texts.get('category_bag','가방') }}",
+            top: "{{ texts.get('category_top','상의') }}",
+            bottom: "{{ texts.get('category_bottom','하의') }}",
+            pants: "{{ texts.get('category_bottom','하의') }}", // 兼容历史导入
+            shoes: "{{ texts.get('category_shoes','신발') }}",
+            // 可选扩展（避免显示英文原码）
+            dress: "{% if lang=='ko' %}원피스{% elif lang=='zh' %}连衣裙{% else %}Dress{% endif %}",
+            outer: "{% if lang=='ko' %}아우터{% elif lang=='zh' %}外套{% else %}Outer{% endif %}",
+            other: "{% if lang=='ko' %}기타{% elif lang=='zh' %}其他{% else %}Other{% endif %}"
+        };
+        function normalizeCategory(code){
+            const c = String(code || '').toLowerCase();
+            return (c === 'pants') ? 'bottom' : c;
+        }
+        function getCategoryName(code){
+            const norm = normalizeCategory(code);
+            return window.categoryDict[norm] || norm || '';
+        }
+
+        /* ===== 安全转义/金额/日期 ===== */
+        function esc(s){
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/[&<>"'`]/g, m => ({
+                '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'
+            }[m]));
+        }
+        function money(n){ const v = Number(n||0); return v.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+        function localDateStr(d){
+            const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+            return `${y}-${m}-${day}`;
+        }
+
+        let curPage = 1;
+        let pageSize = 20;
+        let totalSales = 0;
+        let chart = null;
+        let allSales = [];
+        let selectedIds = [];
+        let payFilter = 'all'; // all/card/cash
+        let heatDataCache = null;
+
+        function setDefaultDateInputs() {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth(), 1);
+            const end = new Date(now.getFullYear(), now.getMonth()+1, 0);
+            document.getElementById('statStart').value = localDateStr(start);
+            document.getElementById('statEnd').value = localDateStr(end);
+        }
+
+        window.onload = () => {
+            setDefaultDateInputs();
+            document.getElementById('pageSizeSel').addEventListener('change', () => {
+                pageSize = parseInt(document.getElementById('pageSizeSel').value,10);
+                curPage = 1; loadSales(curPage);
+            });
+            document.getElementById('deleteForm').addEventListener('submit', function(e){
+                e.preventDefault(); submitDelete(); return false;
+            });
+            document.getElementById('refundForm').addEventListener('submit', function(e){
+                e.preventDefault(); submitRefund(); return false;
+            });
+            document.getElementById('heatMetric').addEventListener('change', () => renderHeatmap(heatDataCache));
+
+            loadSales(curPage);
+            loadChart();
+            loadTop10();
+            loadHeatmap();
+            // 自适应：窗口变化时重绘热力图
+            window.addEventListener('resize', () => renderHeatmap(heatDataCache));
+        };
+
+        // 支付方式筛选（会联动热力图/图表）
+        function setPayFilter(type, btn){
+            payFilter = type;
+            document.querySelectorAll('.btn-pay-filter button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            loadSales(1);
+            loadChart();
+            loadHeatmap();
+            loadTop10();
+        }
+
+        // 销售表
+        async function loadSales(page=1) {
+            curPage = page;
+            let url = `/api/sales?page=${page}&page_size=${pageSize}`;
+            if (payFilter !== 'all') url += `&pay_type=${payFilter}`;
+            try{
+                const res = await fetch(url);
+                const data = await res.json();
+                totalSales = Number(data.total||0);
+                allSales = Array.isArray(data.sales) ? data.sales : [];
+                renderSalesTable(allSales);
+                renderPagination();
+            }catch(e){
+                console.error(e);
+                alert('{{ texts.get("loading","加载中...") }} Error');
+            }
+        }
+        function renderSalesTable(sales) {
+            const tb = document.getElementById('saleTable');
+            tb.innerHTML = '';
+            sales.forEach((sale) => {
+                const isRefunded = (sale.refunded == 1 || sale.refunded === true || sale.refunded === '1');
+                let items = '';
+                const itemsObj = sale.items || {};
+                for (let [barcode, item] of Object.entries(itemsObj)) {
+                    let typeStr = '';
+                    if(item.price_type) {
+                        typeStr = `<span class="badge badge-type">${item.price_type==='wholesale'?'{{ texts["wholesale_price"] if texts.get("wholesale_price") else "批发价" }}':'{{ texts["retail"] if texts.get("retail") else "零售价" }}'}</span>`;
+                    } else if (item.wholesale_price !== undefined && Number(item.price) == Number(item.wholesale_price)) {
+                        typeStr = `<span class="badge badge-type">{{ texts["wholesale_price"] if texts.get("wholesale_price") else "批发价" }}</span>`;
+                    } else {
+                        typeStr = `<span class="badge badge-type">{{ texts["retail"] if texts.get("retail") else "零售价" }}</span>`;
+                    }
+                    const sizeStr = item.size ? `<span class="badge badge-size">${esc(item.size)}</span>` : '';
+                    const catName = getCategoryName(item.category);
+                    const catStr = catName ? `<span class="badge badge-cat">${esc(catName)}</span>` : '';
+                    items += `<span class="badge bg-light text-dark border me-1">${esc(item.name)}</span> ×${Number(item.qty||0)} <span class="text-muted" style="font-size:0.97em;">₩${money(item.price)}</span> ${typeStr} ${catStr} ${sizeStr}<br>`;
+                }
+                let payBadge = '';
+                if(sale.pay_type === "card"){
+                    payBadge = `<span class="badge badge-pay pay-card"><i class="bi bi-credit-card-2-front"></i> {{ texts.get('card','Card') }}</span>`;
+                }else if(sale.pay_type === "cash"){
+                    payBadge = `<span class="badge badge-pay pay-cash"><i class="bi bi-cash"></i> {{ texts.get('cash','Cash') }}</span>`;
+                }
+                let totalCol = '';
+                const baseTotal = Number(sale.total||0);
+                if(sale.pay_type === 'card'){
+                    const vat = Math.round(baseTotal * 0.10);
+                    const totalWithVat = +(baseTotal + vat);
+                    totalCol = `<div>₩${money(totalWithVat)} <small class="text-muted">({{ texts.get('vat_included', '含VAT') }}: ₩${money(vat)})</small></div>`;
+                } else {
+                    totalCol = `<div>₩${money(baseTotal)}</div>`;
+                }
+                tb.innerHTML += `
+                    <tr class="${isRefunded ? 'refunded-row' : ''}">
+                        <td><input type="checkbox" class="row-check" value="${Number(sale.id)}" ${isRefunded ? 'disabled' : ''}></td>
+                        <td>${Number(sale.id)}</td>
+                        <td>${esc(sale.time)}</td>
+                        <td>${payBadge}</td>
+                        <td>${items}${isRefunded ? '<span class="badge refunded-badge ms-1">{{ texts["refund"] if texts.get("refund") else "已退款" }}</span>' : ''}</td>
+                        <td><strong>${totalCol}</strong></td>
+                    </tr>
+                `;
+            });
+            document.getElementById('checkAll').checked = false;
+        }
+        function renderPagination() {
+            const totalPages = Math.max(1, Math.ceil(totalSales / pageSize));
+            let html = '';
+            html += `<li class="page-item${curPage === 1 ? ' disabled' : ''}">
+                <a class="page-link" href="#" onclick="gotoPage(${curPage-1});return false;">«</a>
+            </li>`;
+            let start = Math.max(1, curPage - 3), end = Math.min(totalPages, curPage + 3);
+            for (let i = start; i <= end; i++) {
+                html += `<li class="page-item${i === curPage ? ' active' : ''}">
+                    <a class="page-link" href="#" onclick="gotoPage(${i});return false;">${i}</a>
+                </li>`;
+            }
+            html += `<li class="page-item${curPage === totalPages ? ' disabled' : ''}">
+                <a class="page-link" href="#" onclick="gotoPage(${curPage+1});return false;">»</a>
+            </li>`;
+            document.getElementById('paginationBar').innerHTML = html;
+            document.getElementById('pageInfo').innerText =
+                `{{ texts['current_page'] if texts.get('current_page') else '当前' }} ${curPage} / ${totalPages} , {{ texts['records'] if texts.get('records') else '记录' }} ${totalSales} {{ texts['records'] if texts.get('records') else '' }}`;
+        }
+        function gotoPage(page) {
+            const totalPages = Math.max(1, Math.ceil(totalSales / pageSize));
+            if(page < 1) page = 1;
+            if(page > totalPages) page = totalPages;
+            loadSales(page);
+        }
+        function toggleAll(cb) {
+            document.querySelectorAll('.row-check:not(:disabled)').forEach(row => row.checked = cb.checked);
+        }
+
+        function deleteSelected() {
+            selectedIds = Array.from(document.querySelectorAll('.row-check:checked')).map(cb => parseInt(cb.value, 10));
+            if(selectedIds.length === 0) { alert("{{ texts['select_to_delete'] if texts.get('select_to_delete') else '请选择要删除的记录' }}"); return; }
+            showDeleteModal();
+        }
+
+        function showDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'block';
+            document.getElementById('deleteModal').classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            document.getElementById('deleteModal').classList.remove('show');
+            document.body.style.overflow = '';
+        }
+        async function submitDelete() {
+            try{
+                const res = await fetch('/api/sale/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ids: selectedIds, reason: 'mistake'})
+                });
+                const data = await res.json();
+                closeDeleteModal();
+                loadSales(curPage);
+                loadChart();
+                loadTop10();
+                loadHeatmap();
+                alert(`{{ texts.get('delete_ok','删除完成') }} (deleted:${data.deleted||0}, failed:${data.failed||0})`);
+            }catch(e){
+                alert('Delete error');
+            }
+        }
+
+        function showRefundModal() {
+            selectedIds = Array.from(document.querySelectorAll('.row-check:checked')).map(cb => parseInt(cb.value, 10));
+            if(selectedIds.length === 0) { alert("{{ texts['select_to_refund'] if texts.get('select_to_refund') else '请选择要退款的记录' }}"); return; }
+            document.getElementById('refundModal').style.display = 'block';
+            document.getElementById('refundModal').classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeRefundModal() {
+            document.getElementById('refundModal').style.display = 'none';
+            document.getElementById('refundModal').classList.remove('show');
+            document.body.style.overflow = '';
+        }
+        async function submitRefund() {
+            let reason = document.querySelector('input[name="refund_reason"]:checked').value;
+            if(reason === '其他') {
+                const detail = document.getElementById('refund_other_detail').value;
+                reason = reason + (detail ? `:${detail}` : '');
+            }
+            try{
+                const res = await fetch('/api/sale/refund', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ids: selectedIds, reason: reason})
+                });
+                const data = await res.json();
+                closeRefundModal();
+                loadSales(curPage);
+                loadChart();
+                loadTop10();
+                loadHeatmap();
+                alert(`{{ texts.get('refund_ok','退款完成') }} (updated:${data.updated||0}, skipped:${data.skipped_already_refunded||0})`);
+            }catch(e){
+                alert('Refund error');
+            }
+        }
+
+        function loadChart() {
+            const type = document.getElementById('statType').value;
+            const start = document.getElementById('statStart').value;
+            const end = document.getElementById('statEnd').value;
+            let url = `/api/sales/stats?group=${type}`;
+            if(start && end) url += `&start=${start}&end=${end}`;
+            if (payFilter !== 'all') url += `&pay_type=${payFilter}`;
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    renderChart(data.labels||[], data.sales||[], data.orders||[]);
+                    updateSummary(data.sales||[], data.orders||[], data.labels||[]);
+                })
+                .catch(()=>{ /* ignore */ });
+        }
+        function renderChart(labels, sales, orders) {
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            if (chart) chart.destroy();
+            chart = new Chart(ctx, {
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            type: 'bar',
+                            label: "{{ texts['order_count'] if texts.get('order_count') else '订单数' }}",
+                            data: orders,
+                            yAxisID: 'yOrder',
+                            backgroundColor: "#a5d8fa",
+                            borderRadius:6,
+                            maxBarThickness: 22
+                        },
+                        {
+                            type: 'line',
+                            label: "{{ texts['sales_amount'] if texts.get('sales_amount') else '销售额' }}",
+                            data: sales,
+                            yAxisID: 'ySales',
+                            borderColor: "#0070f3",
+                            backgroundColor: "#0070f333",
+                            fill: true,
+                            borderWidth: 3,
+                            pointRadius: 3,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { display: true } },
+                    scales: {
+                        yOrder: { type:'linear', position:'left', title:{display:true, text:'{{ texts['order_count'] if texts.get('order_count') else '订单数' }}'}, beginAtZero:true },
+                        ySales: { type:'linear', position:'right', title:{display:true, text:'{{ texts['sales_amount'] if texts.get('sales_amount') else '销售额' }}'}, beginAtZero:true, grid:{drawOnChartArea:false} }
+                    }
+                }
+            });
+        }
+        function updateSummary(sales, orders, labels) {
+            const sum = sales.reduce((a,b)=>a+Number(b||0),0);
+            const cnt = orders.reduce((a,b)=>a+Number(b||0),0);
+            let msg = `<strong>₩${sum.toLocaleString()}</strong> {{ texts['total'] if texts.get('total') else '总额' }} / <strong>${cnt}</strong> {{ texts['order_count'] if texts.get('order_count') else '订单数' }} (기간: ${labels[0]||''} ~ ${labels[labels.length-1]||''})`;
+            msg += (payFilter === 'all') ? '' : ` &nbsp;<span class="badge badge-pay ${payFilter === 'card' ? 'pay-card':'pay-cash'}">${payFilter === 'card' ? '{{ texts.get("card","Card") }}' : '{{ texts.get("cash","Cash") }}'}</span>`;
+            document.getElementById('statSummary').innerHTML = msg;
+        }
+
+        // TOP10榜：优先用后端 /api/sales/top_items；若无则前端降级聚合最近 N 页
+        async function loadTop10() {
+            const listEl = document.getElementById('top10List');
+            listEl.innerHTML = `<li class="text-muted">{{ texts.get('loading','加载中...') }}</li>`;
+            try{
+                let url = '/api/sales/top_items?days=60';
+                if (payFilter !== 'all') url += `&pay_type=${payFilter}`;
+                const res = await fetch(url);
+                if(res.ok){
+                    const data = await res.json();
+                    renderTop10(data);
+                    return;
+                }
+            }catch(e){ /* 走降级 */ }
+
+            // 降级：聚合最近最多 5 页 × 100 条
+            try{
+                const agg = new Map(); // key: name|cat|size  -> {name,category,size,count}
+                let fetched = 0, maxPages = 5, per=100;
+                for(let p=1; p<=maxPages; p++){
+                    const r = await fetch(`/api/sales?page=${p}&page_size=${per}${payFilter!=='all'?`&pay_type=${payFilter}`:''}`);
+                    const d = await r.json();
+                    (d.sales||[]).forEach(s=>{
+                        const items = s.items||{};
+                        Object.values(items).forEach(it=>{
+                            const key = `${it.name||''}|${normalizeCategory(it.category)||''}|${it.size||''}`;
+                            const prev = agg.get(key)||{name:it.name||'',category:normalizeCategory(it.category)||'',size:it.size||'',count:0};
+                            prev.count += Number(it.qty||0);
+                            agg.set(key, prev);
+                        });
+                    });
+                    fetched += (d.sales||[]).length;
+                    if(fetched >= Number(d.total||0)) break;
+                }
+                const arr = Array.from(agg.values()).sort((a,b)=>b.count-a.count).slice(0,10);
+                renderTop10(arr);
+            }catch(e){
+                listEl.innerHTML = `<li class="text-danger">Top10 load error</li>`;
+            }
+        }
+        function renderTop10(data){
+            const listEl = document.getElementById('top10List');
+            if(!Array.isArray(data) || data.length===0){
+                listEl.innerHTML = `<li class="text-muted">-</li>`; return;
+            }
+            let html = '';
+            data.forEach((item, idx) => {
+                const catName = getCategoryName(item.category);
+                const catStr = catName ? `<span class="badge badge-cat">${esc(catName)}</span>` : '';
+                const sizeStr = item.size ? `<span class="badge badge-size">${esc(item.size)}</span>` : '';
+                html += `<li><span class="badge badge-rank">${idx+1}</span> <b>${esc(item.name)}</b> ${catStr} ${sizeStr} <span class="text-primary ms-2">${Number(item.count||0)}</span></li>`;
+            });
+            listEl.innerHTML = html;
+        }
+
+        /* ============ 热力图加载 & 绘制（灰阶） ============ */
+        function loadHeatmap(){
+            const metric = document.getElementById('heatMetric').value;
+            const start = document.getElementById('statStart').value;
+            const end = document.getElementById('statEnd').value;
+            let url = `/api/sales/heatmap_hour_weekday?metric=${metric}`;
+            if(start && end) url += `&start=${start}&end=${end}`;
+            if (payFilter !== 'all') url += `&pay_type=${payFilter}`;
+            fetch(url).then(r=>r.json()).then(data=>{
+                heatDataCache = data;
+                renderHeatmap(data);
+            }).catch(()=>{ /* ignore */ });
+        }
+
+        function renderHeatmap(data){
+            if(!data) return;
+            const canvas = document.getElementById('heatmapHourWeek');
+            const tooltip = document.getElementById('heatTooltip');
+            const ctx = canvas.getContext('2d');
+
+            // 设备像素比，保证清晰
+            const DPR = window.devicePixelRatio || 1;
+            const wrap = canvas.parentElement;
+            const W = Math.min(wrap.clientWidth, 900); // 最大宽度
+            const H = 7 * 34 + 40; // 行高+顶部边距
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            canvas.width = Math.floor(W * DPR);
+            canvas.height = Math.floor(H * DPR);
+            ctx.scale(DPR, DPR);
+
+            // 轴 & 网格设置
+            const hours = data.hours || []; // 0..23
+            const matrix = data.matrix || []; // [7][24]
+            const metric = document.getElementById('heatMetric').value;
+            const weekLabels = [
+                '{{ texts.get("mon","Mon") }}',
+                '{{ texts.get("tue","Tue") }}',
+                '{{ texts.get("wed","Wed") }}',
+                '{{ texts.get("thu","Thu") }}',
+                '{{ texts.get("fri","Fri") }}',
+                '{{ texts.get("sat","Sat") }}',
+                '{{ texts.get("sun","Sun") }}'
+            ];
+
+            const paddingLeft = 56;
+            const paddingTop = 24;
+            const cellH = 34;
+            const cellW = (W - paddingLeft - 10) / 24;
+
+            // 取最大值做颜色映射
+            let maxVal = 0;
+            for(let r=0;r<7;r++){
+                for(let c=0;c<24;c++){
+                    const v = (matrix[r] && matrix[r][c])?matrix[r][c]:0;
+                    if (v > maxVal) maxVal = v;
+                }
+            }
+            if(maxVal === 0) maxVal = 1;
+
+            // 背景
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0,0,W,H);
+
+            // 绘制小时刻度（顶部）
+            ctx.fillStyle = '#6c757d';
+            ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+            ctx.textAlign = 'center';
+            for(let c=0;c<24;c++){
+                if(c%2===0){
+                    const x = paddingLeft + c*cellW + cellW/2;
+                    ctx.fillText(String(c).padStart(2,'0'), x, 14);
+                }
+            }
+
+            // 绘制行标签 + 网格
+            ctx.textAlign = 'right';
+            for(let r=0;r<7;r++){
+                const y = paddingTop + r*cellH;
+                // 星期标签
+                ctx.fillStyle = '#495057';
+                ctx.fillText(weekLabels[r], paddingLeft - 8, y + cellH*0.65);
+                // 每行的格子
+                for(let c=0;c<24;c++){
+                    const v = (matrix[r] && matrix[r][c])?matrix[r][c]:0;
+                    const x = paddingLeft + c*cellW;
+                    // 灰阶映射：越大越深
+                    const t = v / maxVal; // 0..1
+                    const base = 240; // 最浅
+                    const dark = 52;  // 最深
+                    const g = Math.round(base - (base - dark) * Math.pow(t, 0.75));
+                    ctx.fillStyle = `rgb(${g},${g},${g})`;
+                    ctx.fillRect(x, y, cellW-1, cellH-1);
+                }
+            }
+
+            // 交互：悬浮提示
+            const cells = [];
+            for(let r=0;r<7;r++){
+                for(let c=0;c<24;c++){
+                    const x = paddingLeft + c*cellW;
+                    const y = paddingTop + r*cellH;
+                    cells.push({r,c,x,y,w:cellW,h:cellH,val:(matrix[r]&&matrix[r][c])?matrix[r][c]:0});
+                }
+            }
+
+            function showTip(evt){
+                const rect = canvas.getBoundingClientRect();
+                const mx = (evt.clientX - rect.left);
+                const my = (evt.clientY - rect.top);
+                let found = null;
+                for(const cell of cells){
+                    if(mx>=cell.x && mx<=cell.x+cell.w && my>=cell.y && my<=cell.y+cell.h){
+                        found = cell; break;
+                    }
+                }
+                if(found){
+                    const title = `${weekLabels[found.r]} ${String(found.c).padStart(2,'0')}:00`;
+                    const unit = (metric==='sales') ? '₩' : '';
+                    const valStr = (metric==='sales') ? Number(found.val||0).toFixed(0) : Number(found.val||0);
+                    tooltip.innerHTML = `${title}<br>${unit}${valStr}`;
+                    tooltip.style.left = (found.x + found.w/2) + 'px';
+                    tooltip.style.top = (found.y + 8) + 'px';
+                    tooltip.style.opacity = 1;
+                }else{
+                    tooltip.style.opacity = 0;
+                }
+            }
+            canvas.onmousemove = showTip;
+            canvas.onmouseleave = ()=> tooltip.style.opacity = 0;
+
+            // 底部摘要
+            const summary = document.getElementById('heatSummary');
+            const pBadge = (payFilter === 'all') ? '' : ` <span class="badge ${payFilter==='card'?'pay-card':'pay-cash'} badge-pay">${payFilter==='card'?'{{ texts.get("card","Card") }}':'{{ texts.get("cash","Cash") }}'}</span>`;
+            summary.innerHTML = `
+                {{ texts.get('metric_orders','订单数') }}: <b>${Number(data.sum_orders||0).toLocaleString()}</b> &nbsp;|&nbsp;
+                {{ texts.get('metric_sales','销售额') }}: <b>₩${Number(data.sum_sales||0).toLocaleString()}</b> &nbsp;|&nbsp;
+                {{ texts.get('metric_items','件数') }}: <b>${Number(data.sum_items||0).toLocaleString()}</b>
+                ${pBadge}
+            `;
+        }
+
+        // Modal关闭体验增强
+        document.addEventListener('click', function(e) {
+            if(e.target && e.target.classList && e.target.classList.contains('modal')) {
+                e.target.style.display = 'none';
+                e.target.classList.remove('show');
+                document.body.style.overflow = '';
+            }
+        });
+        document.addEventListener('keydown', function(e){
+            if(e.key === 'Escape'){
+                closeDeleteModal(); closeRefundModal();
+            }
+        });
+    </script>
+</body>
+</html>
