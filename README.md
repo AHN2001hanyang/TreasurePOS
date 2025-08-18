@@ -1,6 +1,4 @@
 <div align="center">
-  
-<img src="static/TREASURE.png" alt="TreasurePOS" width="260"/>
 
 # **TreasurePOS**
 _A fast, local‑first POS with rock‑solid printing_
