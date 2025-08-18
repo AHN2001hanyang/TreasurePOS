@@ -4,7 +4,7 @@
 
 ---
 
-TreasurePOS is a **local‑first** POS built with Flask. It handles inventory, checkout, refunds, stock I/O, and exports. Receipts are rendered as an HTML element (`.receipt`), **screenshot with Playwright** to PNG, converted to **ZPL**, and printed on Zebra‑compatible printers (Windows via pywin32).  
+TreasurePOS is a **local‑first** POS built with Flask. It covers inventory, checkout, refunds, stock I/O, and exports. Receipts are rendered as an HTML element (`.receipt`), **captured with Playwright** (element screenshot) to PNG, converted to **ZPL**, and printed on Zebra‑compatible printers (Windows via pywin32).  
 Data is stored in a persistent **user data directory** (outside the repo) and legacy data is migrated automatically on first run.
 
 > If you just want the Windows EXE fast, jump to **[Build → PyInstaller (onedir)](#build--pyinstaller-onedir)**.
@@ -13,20 +13,20 @@ Data is stored in a persistent **user data directory** (outside the repo) and le
 
 ## Highlights
 
-- Local‑first Flask app (no external DB required)
-- Persistent **data directory** with **auto‑migration** (DB + images)
-- Integer‑safe pricing columns (`*_int`) for precise arithmetic
-- Fast search & pagination endpoints
-- Excel (`xlsx`) import/export, **CSV streaming** for sales
-- **Playwright element screenshot** → PNG → **ZPL** → Windows printing
-- Optimized **79 mm** receipt layout (canvas **624px** wide), tuned for 203 dpi
-- Optional **pywebview shell** (`main.py`) for a desktop‑like window
+- 🧭 Local‑first Flask app (no external DB required)
+- 💾 Persistent **data directory** with **auto‑migration** (DB + images)
+- 🔢 Integer‑safe pricing columns (`*_int`) for precise arithmetic
+- 🔍 Fast search & pagination endpoints
+- 📥/📤 Excel (`xlsx`) import/export, **CSV streaming** for sales
+- 🧾 **Playwright element screenshot** → PNG → **ZPL** → Windows printing
+- 🧻 Optimized **79 mm** receipt layout (canvas **624px** wide), tuned for 203 dpi
+- 🪟 Optional **pywebview shell** (`main.py`) for a desktop‑like window
+
+> ℹ️ This repository ships the Python sources and **HTML templates**. Product images are **not bundled**. At runtime, images live in the data directory under `images/` and are served via the route `/static/images/<file>`.
 
 ---
 
 ## Project Layout
-
-> This repository ships the Python sources and **HTML templates**. Product images are **not** bundled. At runtime, images live in the data directory under `images/`, and are served via a dedicated route (`/static/images/<file>`). You can reference them with `url_for('serve_runtime_image', filename='name.png')` in templates.
 
 ```
 .
@@ -34,18 +34,18 @@ Data is stored in a persistent **user data directory** (outside the repo) and le
 ├─ main.py             # pywebview launcher (starts Flask and opens window)
 ├─ templates/          # HTML templates (index, manage, sales, settings, stocklog, receipt)
 ├─ README.md
-└─ icon.ico            # (optional) your app icon for packaging
+└─ icon.ico            # (optional) app icon used when packaging
 ```
 
 ### Runtime data directories
 
 At first launch TreasurePOS creates a persistent data folder (or use `TREASUREPOS_DATA_DIR` to override):
 
-- **Windows:** `%LOCALAPPDATA%\TreasurePOS`
+- **Windows:** `%LOCALAPPDATA%\\TreasurePOS`
 - **macOS:** `~/Library/Application Support/TreasurePOS`
 - **Linux:** `~/.local/share/treasurepos`
 
-It contains:
+Inside the data folder:
 
 ```
 inventory.db          # SQLite database
@@ -68,7 +68,7 @@ venv\Scripts\activate
 # source venv/bin/activate
 
 # 2) Install dependencies
-pip install flask flask-cors pandas openpyxl pillow playwright pywin32
+pip install flask flask-cors pandas openpyxl pillow playwright pywin32 pywebview
 
 # 3) Install Playwright browser once
 python -m playwright install chromium
@@ -80,10 +80,11 @@ python app.py
 python main.py
 ```
 
-Access: http://127.0.0.1:5000 (or the chosen port).  
-Health check: `GET /healthz` → `ok`.
+- Access: http://127.0.0.1:5000 (or the chosen port)  
+- Health check: `GET /healthz` → `ok`
 
 Environment overrides:
+
 ```bash
 # choose a fixed port
 # Windows (cmd):   set TREASUREPOS_PORT=5000
@@ -100,6 +101,7 @@ Environment overrides:
 ## Build · PyInstaller (onedir)
 
 **Fast Windows build with icon (recommended):**
+
 ```powershell
 pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main.py ^
   --add-data "templates;templates" ^
@@ -109,12 +111,14 @@ pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main
 
 Run the app: `dist\TreasurePOS\TreasurePOS.exe`
 
-> If Chromium isn’t installed on the target machine, run once:
+> If Chromium isn’t installed on the target machine, run once on that machine:
 > ```powershell
 > python -m playwright install chromium
 > ```
+> (Printing will work only after the browser is available; without it, element screenshot will fail.)
 
 If packaging misses resources on your setup, add collectors:
+
 ```powershell
 --collect-all playwright --collect-all PIL --collect-all flask_cors --collect-all pywebview
 ```
@@ -136,12 +140,12 @@ If packaging misses resources on your setup, add collectors:
 
 **items**
 - `barcode` (unique), `name`, `qty`, `category`, `size`, `status`, `image`, `discontinued_time`
-- Prices kept in legacy float and integer columns:
+- Prices stored in legacy float and integer columns:
   - `price_int`, `wholesale_price_int` (integers are preferred for all math)
 
 **sales**
 - `time`, `items` (cart JSON snapshot), `pay_type` (`cash`/`card`), `refunded`
-- `total_int` (preferred), legacy `total` for fallback
+- `total_int` (preferred), legacy `total` as fallback
 
 **sale_items**
 - Per‑item detail for each sale: `sale_id`, `barcode`, `name`, `category`, `size`, `qty`, `price_int` (+ legacy `price`)
@@ -160,9 +164,11 @@ _All write paths prefer integer columns; legacy float values are only used as a 
 
 **Import products (Excel):** `POST /import/items`  
 Excel header must be:
+
 ```
 barcode, name, price, wholesale_price, qty, category, size, [status], [image]
 ```
+
 - Category: `bag, top, bottom, shoes, dress` (`pants` is normalized to `bottom`)
 - Size: `free, s, m, l, xl`
 - Image: only **controlled relative paths** like `images/abc.jpg` are accepted for safety
@@ -210,21 +216,18 @@ Pipeline: Playwright opens `/receipt/<id>`, captures **only** the `.receipt` ele
 
 /* Table spacing & wrapping */
 table { table-layout: fixed; }
-th, td { padding: 11px 7px; word-break: break-word; overflow-wrap: anywhere; }
+th, td { padding: 11px 7px; word-break: break-word; overflow-wrap: anywhere; vertical-align: middle; }
 
 /* Name column more space to the right */
 td.name-cell { padding-right: 12px; }
 
 /* Columns: #2 & #3 center both axes; #4 right & vertical‑middle */
-thead th:nth-child(2),
-tbody td:nth-child(2),
-thead th:nth-child(3),
-tbody td:nth-child(3) {
+thead th:nth-child(2), tbody td:nth-child(2),
+thead th:nth-child(3), tbody td:nth-child(3) {
   text-align: center;
   vertical-align: middle;
 }
-thead th:nth-child(4),
-tbody td:nth-child(4) {
+thead th:nth-child(4), tbody td:nth-child(4) {
   text-align: right;
   vertical-align: middle;
 }
@@ -236,7 +239,9 @@ tbody td:nth-child(4) {
 .tail-blank { height: 2cm; }
 ```
 
-If you see stacked lines above totals, ensure you don’t mix multiple `<hr>` and table borders in the same spot. Keep one separator (`<hr>`) and borders on table rows—avoid both on the same boundary.
+**Path safety:** For images, only controlled relative paths like `images/name.jpg` are recognized and served by `/static/images/<file>`. Absolute paths, parent traversal, or drive letters are rejected by the backend for safety.
+
+**Duplicate lines near totals?** Ensure you don’t stack an `<hr>` directly adjacent to table borders in the same place—keep one separator and avoid double borders.
 
 ---
 
@@ -247,6 +252,12 @@ If you see stacked lines above totals, ensure you don’t mix multiple `<hr>` an
 - **Port in use** → set `TREASUREPOS_PORT` to a free one or run `main.py` (auto‑selects a port)
 - **Images don’t show** → only relative `images/<file>` is accepted for safety; anything else is ignored
 - **EXE misses stuff** → rebuild with the `--collect-all` flags in the build section
+
+---
+
+# English
+
+*(You are here — English is the canonical section. See below for Chinese/Korean mirrors.)*
 
 ---
 
@@ -267,7 +278,7 @@ TreasurePOS 是一个 **本地优先** 的 Flask 收银系统。支持库存、�
 
 ## 目录结构（仓库）
 
-> 仓库包含 Python 源码与 **模板**；**不包含**产品图片。运行时图片位于数据目录的 `images/`，并通过路由 `/static/images/<file>` 对外提供；模板里可用 `url_for('serve_runtime_image', filename='xxx.png')` 引用。
+> 仓库包含 Python 源码与 **模板**；**不包含**产品图片。运行时图片位于数据目录的 `images/` 并通过 `/static/images/<file>` 提供。
 
 ```
 app.py, main.py, templates/, README.md, icon.ico
@@ -278,7 +289,7 @@ app.py, main.py, templates/, README.md, icon.ico
 ```bash
 python -m venv venv
 venv\Scripts\activate   # macOS/Linux: source venv/bin/activate
-pip install flask flask-cors pandas openpyxl pillow playwright pywin32
+pip install flask flask-cors pandas openpyxl pillow playwright pywin32 pywebview
 python -m playwright install chromium
 python app.py           # 或 python main.py
 ```
@@ -336,7 +347,7 @@ TreasurePOS는 **로컬 우선** Flask 기반 POS입니다. 재고/결제/환불
 
 ## 리포지토리 구성
 
-> 리포지토리에는 파이썬 소스와 **템플릿**이 포함됩니다. 제품 이미지는 **동봉되지 않으며**, 실행 시 데이터 디렉터리의 `images/` 에 저장됩니다. 라우트 `/static/images/<file>` 로 제공되며, 템플릿에서 `url_for('serve_runtime_image', filename='xxx.png')` 로 참조할 수 있습니다.
+> 리포지토리에는 파이썬 소스와 **템플릿**이 포함됩니다. 제품 이미지는 **동봉되지 않으며**, 실행 시 데이터 디렉터리의 `images/` 에 저장되고 `/static/images/<file>` 로 제공됩니다.
 
 ```
 app.py, main.py, templates/, README.md, icon.ico
@@ -347,7 +358,7 @@ app.py, main.py, templates/, README.md, icon.ico
 ```bash
 python -m venv venv
 venv\Scripts\activate   # macOS/Linux: source venv/bin/activate
-pip install flask flask-cors pandas openpyxl pillow playwright pywin32
+pip install flask flask-cors pandas openpyxl pillow playwright pywin32 pywebview
 python -m playwright install chromium
 python app.py           # 또는 python main.py
 ```
@@ -389,4 +400,3 @@ pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main
 ---
 
 **License:** Choose what fits your distribution (MIT/Apache‑2.0/Proprietary).
-
