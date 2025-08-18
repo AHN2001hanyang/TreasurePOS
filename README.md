@@ -1,86 +1,109 @@
 # TreasurePOS (Flask + Desktop WebView)
 
-Local‑first POS for small shops. Scan or type barcodes, switch retail/wholesale price, sell with cash or card, keep stock logs, view sales analytics, and print Zebra receipts (KO/ZH/EN).
-
-> **Heads‑up:** This repository currently contains **duplicate blocks** in `app.py` for the printing pipeline (older Html2Image code alongside the newer Playwright‑based flow). In practice you should keep **one** implementation. This README documents the **recommended Playwright + ZPL** flow.
+Local‑first POS for small shops. Scan or type barcodes, switch retail/wholesale price, sell with cash or card, keep stock logs, view sales analytics, and print Zebra receipts. UI available in **한국어 / 中文 / English**.
 
 ---
 
 ## ✨ Features
-- Barcode/manual input, retail/wholesale toggle, cash/card checkout
-- Product CRUD + **Excel import/export**
-- **Sales logs & stock logs**, filters and charts
-- **Multilingual UI**: 한국어 / 中文 / English
-- **Zebra thermal printing**: render `receipt.html` → PNG → ZPL graphics → send to Windows printer
+- Fast barcode or manual entry with **retail / wholesale** price toggle
+- Product CRUD with **Excel import/export**
+- **Sales history** (cash / card), refunds, and **stock in/out logs**
+- **Analytics**: daily/weekly/monthly, heatmap (weekday × hour)
+- **Multilingual UI** (KO/ZH/EN) and responsive desktop window (pywebview)
+- **Thermal printing (Zebra)**: `receipt.html` → PNG → ZPL → Windows RAW print
 
 ## Project Structure
 ```
-/app.py           # Flask backend (routes, DB, printing)
+/app.py           # Flask backend (routes, DB, Playwright→ZPL printing)
 /main.py          # Desktop wrapper (pywebview + health check)
 /templates/
-  index.html      # Sales (home)
-  manage.html     # Manage products (Excel import/export)
-  sales.html      # Sales analytics
-  stocklog.html   # Stock in/out/adjust logs
-  settings.html   # Language switch (KO/ZH/EN)
-  receipt.html    # Printable receipt layout
-/static/          # assets
+  index.html      # POS (sales) home
+  manage.html     # Product management (Excel import/export)
+  sales.html      # Sales analytics & charts
+  stocklog.html   # Stock in/out/adjustment logs
+  settings.html   # Settings (language selection)
+  receipt.html    # Receipt layout (printed)
+/static/          # Images, fonts, styles
 /README.md
 ```
 
 ## Requirements
-- Python **3.10+** (Windows 10/11 recommended for printing)
-- Packages (install below): Flask, Flask‑CORS, pandas, openpyxl, Pillow, **playwright**, **pywin32** (Windows only), pywebview
+- **Python 3.10+** (Windows 10/11 recommended for printing)
+- Dependencies (install below): `Flask`, `flask-cors`, `pandas`, `openpyxl`, `Pillow`, **`playwright`**, **`pywin32`** (Windows printing only), `pywebview`
 
 ```bash
 pip install -r requirements.txt
 pip install playwright pywin32 pywebview
-python -m playwright install chromium   # once per machine
+python -m playwright install chromium   # run once per machine
 ```
 
-> If you previously used **Html2Image**, you can remove it; the current recommended flow uses **Playwright**.
+> Tip: If VS Code shows “_Pylance: cannot resolve import 'playwright.sync_api'_”, you likely need to install the package in the **active interpreter** and then restart VS Code.
 
 ## Run (development)
 ```bash
-python app.py        # Flask only (opens at 127.0.0.1:<port>)
-# or desktop window:
+# Flask only
+python app.py
+
+# Desktop window (recommended for non‑technical users)
 python main.py
 ```
-`main.py` starts Flask in a background thread and opens a local window via **pywebview**.
+`main.py` launches the Flask server in the background and opens a local window with **pywebview**.
 
-## Data location
-The app stores the SQLite DB and uploads in a **writable run directory**. By default it’s next to the executable (or the repository) and is **migrated automatically** from older layouts. You can override with:
+## Data Location
+The app stores the SQLite database and uploads in a **writable run directory**, and will **migrate legacy files** automatically on first run.
+
+Default locations (unless `TREASUREPOS_DATA_DIR` is set):
+- **Windows:** `%LOCALAPPDATA%\TreasurePOS`
+- **macOS:** `~/Library/Application Support/TreasurePOS`
+- **Linux:** `~/.local/share/treasurepos`
+
+You can override with:
 ```bash
-# optional – change where the DB/uploads live
-set TREASUREPOS_DATA_DIR=C:\TreasurePOS\data       # Windows (PowerShell: $env:TREASUREPOS_DATA_DIR="...")
+# Windows (PowerShell)
+$env:TREASUREPOS_DATA_DIR="D:\TreasurePOS\data"
+# or classic CMD
+set TREASUREPOS_DATA_DIR=D:\TreasurePOS\data
 ```
-This variable is detected at startup and used by the helpers that compute the run dir and migrate legacy files. (See the code path that looks up `TREASUREPOS_DATA_DIR` and performs `_maybe_migrate_legacy()`.)
 
-## Printing pipeline (recommended)
-1) **Render only the `.receipt` element** from `receipt.html` to PNG using **Playwright** at a fixed width (**624px by default**, roughly ~78–79 mm).  
-   The helper opens Chromium, waits for fonts, and screenshots the element.
-2) **Convert PNG → ZPL graphics** and prepend ZPL header with `^PW` (print width in dots) and `^LL` (label length) based on the actual image width/height.
-3) **Send raw ZPL** to a Windows printer (default: `ZDesigner ZD230-203dpi ZPL`).
+## Printing Pipeline (recommended)
+1. **Render only the `.receipt` element** of `receipt.html` with **Playwright** at a fixed width (default **624 px**, ≈79 mm on 203 dpi printers).  
+   The code waits for network idle and fonts, then screenshots the element to PNG.
+2. **Convert PNG → ZPL graphics** and emit ZPL header with:
+   - `^PW{w}` → print width in printer dots (taken from the PNG width)
+   - `^LL{h}` → label length in dots (taken from the PNG height, plus a tiny margin)
+3. **Send raw ZPL to Windows** using `pywin32` (printer name defaults to `ZDesigner ZD230-203dpi ZPL`, change it in `app.py`).
 
-> You can change the printer name in `app.py` or set an environment variable `PRINTER_NAME` and read it in code.
+**Keeping sizes consistent**  
+- In `receipt.html`, the CSS variable `--paper-w` controls the width used by Playwright.  
+- Playwright screenshots at the same width.  
+- ZPL uses the real PNG width/height for `^PW`/`^LL`.  
+If your device needs a strict **79 mm = 632 dots (203 dpi)**, set **`--paper-w: 632px`** and screenshot width to **632**.
 
-### Keep CSS ↔ Screenshot ↔ ZPL consistent
-- In `receipt.html`, root width is **624px** by default (`:root { --paper-w: 624px; }`) and page size is `@page { size: 79mm auto; }`.
-- Playwright screenshots at **624 px** width.
-- ZPL sets `^PW` to the PNG pixel width and `^LL` to the PNG pixel height (+ small margin).
+## Receipt Layout Notes
+- The table uses **fixed column widths**; names wrap naturally.
+- Alignment: **col‑1 (name) left**, **col‑2 (qty) centered**, **col‑3 (unit price) centered**, **col‑4 (subtotal) right + vertically centered**.
+- VAT line appears only for card payments; cash shows **“VAT not included”** notice.
+- `tail-blank` reserves a **2 cm** cutter space and prevents the footer from being cramped.
 
-If your printer requires **exact 79 mm at 203 dpi (= 632 dots)**, simply:
-- Change the CSS variable and screenshot width to **632**, **and**
-- Ensure ZPL uses `^PW632` / `^LL{H}`.
+## Import / Export (Excel)
+Use **Manage → Import/Export**. The expected fields are:
 
-### Windows raw printing
-The app uses `pywin32` to open the printer and send ASCII ZPL in **RAW** mode. If `pywin32` is missing, the API returns an informative error message rather than crashing.
+| field | meaning |
+|---|---|
+| `barcode` | unique product code |
+| `name` | product name |
+| `price` | retail price (integer KRW recommended) |
+| `wholesale_price` | wholesale price |
+| `qty` | stock quantity |
+| `category` | one of: `bag`, `top`, `bottom`, `shoes`, `dress` |
+| `size` | `free`, `s`, `m`, `l`, `xl` |
+| `status` | `정상` / `매진` / `절판` |
+| `image` | **relative** path under `static/images/` (validated) |
 
-## Build a Windows executable (onedir)
-The simplest onedir build (fast startup) that includes templates and static assets:
+## Build a Windows Executable (onedir)
+A fast‑startup **onedir** build that bundles templates/static and uses your `icon.ico`:
 
 ```powershell
-# from the repo root
 pyinstaller --noconfirm --onedir --windowed main.py `
   -i icon.ico `
   --add-data "templates;templates" `
@@ -89,50 +112,29 @@ pyinstaller --noconfirm --onedir --windowed main.py `
   --collect-all playwright
 ```
 
-Notes:
-- The Playwright **Chromium runtime is not bundled** by PyInstaller; on the target machine run once:
-  ```powershell
-  python -m playwright install chromium
-  ```
-- If you run the server only, you can also build `app.py` in the same way.
-- Make sure the process can write to your chosen data directory (see **Data location**).
+> On the target machine, run **once** (Playwright runtime is not bundled by PyInstaller):
+> ```powershell
+> python -m playwright install chromium
+> ```
 
-## Excel import/export
-- Use the **Manage** page to import/export products.
-- Expected columns (header names are flexible; map to): **barcode**, **name**, **price**, **wholesale_price**, **qty**, **category**, **size**, **status**, **image**.
-- Images should be placed in `/static/images/` (or uploaded via the app); the server exposes them at `/static/images/<filename>`.
+## Troubleshooting
+- **Playwright import missing** – `pip install playwright` in the active venv, then `python -m playwright install chromium`.
+- **“Three lines” appear near footer** – ensure your template only uses the intended `<hr>` elements; ZPL now sets `^LL` to the **actual image height**, avoiding extra trailing lines caused by label length mismatches.
+- **Nothing prints** – verify the **printer name** in `app.py` and that the device mode is **ZPL**.
+- **Receipt alignment** – adjust the `<colgroup>` widths and the CSS rules in `receipt.html` to fine‑tune centering and right alignment as needed.
 
-## API surface (selected)
-- `GET /` – sales screen  
-- `GET /manage`, `/sales`, `/stocklog`, `/settings`, `/receipt/<sale_id>` – pages
-- `POST /api/print_receipt/<sale_id>` – render & print receipt (**Playwright → ZPL**)
-- `GET /api/items`, `POST /api/items` (+ `PUT/DELETE /api/items/<barcode>`) – product CRUD
-- `GET /api/items/search?q=...` – search by code or name
-- `POST /api/sales` – create a sale (cash/card), writes stock log
-- `GET /api/sales` – list sales; `GET /api/stocklog` – stock in/out/adjust logs
-- `POST /api/import` / `GET /api/export` – Excel import/export
-
-> See `app.py` for the exact request/response shapes.
-
-## Receipt layout tips
-- The logo block has extra bottom margin so it doesn’t crowd the table.
-- In the table header and body: **cols 1–3 are centered**, **col 4 stays right‑aligned and vertically centered**, and names wrap naturally.  
-- `tail-blank` reserves the exact blank area at the bottom for cutter space.
-- VAT notice is bold and slightly larger; cash mode shows “VAT not included”, card mode prints an explicit VAT line.
-
-## Known issues / housekeeping
-- **Duplicate printing code** in `app.py` (Html2Image vs Playwright) – keep the Playwright variant and delete the old route to avoid accidental overrides.
-- Some older CSS in `receipt.html` may still contain typos (e.g., `!重要`, malformed values). Use the latest fixed stylesheet.
-- When packaging, remember the Playwright runtime step on every new machine.
+## Roadmap
+- Optional env‑configurable printer name
+- Inventory receiving UI polish
+- More receipt themes
 
 ## License
-MIT (or your preference).
+**Apache‑2.0**
 
 ---
 
-### Quick commands
+### Quick Start
 
-**Development**
 ```bash
 pip install -r requirements.txt
 pip install playwright pywin32 pywebview
@@ -140,7 +142,8 @@ python -m playwright install chromium
 python main.py
 ```
 
-**Build (Windows, onedir)**
+### Build (Windows onedir)
+
 ```powershell
 pyinstaller --noconfirm --onedir --windowed main.py `
   -i icon.ico `
