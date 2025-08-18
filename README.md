@@ -1,98 +1,121 @@
-# TreasurePOS — Flask-based Local POS (79 mm Receipt, ZPL)
+# TreasurePOS · Flask POS for 79 mm Receipts (ZPL)
 
-**Languages · 语言 · 언어:** [🇺🇸 English](#-english) · [🇨🇳 简体中文](#-简体中文) · [🇰🇷 한국어](#-한국어)
+[![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#)
+[![Flask](https://img.shields.io/badge/Flask-2.x-black.svg)](#)
+[![Playwright](https://img.shields.io/badge/Playwright-Chromium-green.svg)](#)
+[![Platform](https://img.shields.io/badge/OS-Windows%20%7C%20macOS%20%7C%20Linux-informational.svg)](#)
+[![Packaging](https://img.shields.io/badge/PyInstaller-onedir-orange.svg)](#)
+
+> A local‑first Point of Sale built with Flask. Element‑level receipt rendering (Playwright ➜ PNG ➜ ZPL) for **79 mm** printers, safe integer pricing, fast search, Excel import/export, and a desktop window via **pywebview**.
+
+**Languages · 语言 · 언어:**  
+**[🇺🇸 English](#-english)** · **[🇨🇳 简体中文](#-简体中文)** · **[🇰🇷 한국어](#-한국어)**
 
 ---
 
-This README refreshes and expands your original file. It reflects the **current codebase** (`app.py`, `main.py`, templates & static) and corrects outdated parts (e.g., **Playwright** is now used for receipt screenshots, not `html2image`). It also documents data paths, APIs, packaging, and receipt customization.
+## Table of Contents
 
-> If you just want to build the EXE quickly, jump to: [Build (PyInstaller, onedir)](#build-pyinstaller-onedir).
+- [Highlights](#-highlights)
+- [Project Layout](#-project-layout)
+- [Runtime Data \& Paths](#-runtime-data--paths)
+- [Run From Source](#-run-from-source)
+- [Build (PyInstaller, onedir)](#-build-pyinstaller-onedir)
+- [Configuration](#-configuration)
+- [Database](#-database)
+- [Import / Export](#-import--export)
+- [Core APIs](#-core-apis)
+- [Receipt Rendering & Printing](#-receipt-rendering--printing)
+- [Customize the Receipt](#-customize-the-receipt)
+- [Troubleshooting](#-troubleshooting)
+- [i18n](#-i18n)
+- [License](#-license)
+- [简体中文](#-简体中文)
+- [한국어](#-한국어)
 
 ---
 
 ## ✨ Highlights
 
-- **Local-first** Flask app, UI via templates under `templates/` and assets under `static/`
-- **Persistent data dir** (auto-migration on first run): DB & images live outside the code folder
-- **Inventory, sales, refunds, stock I/O** with integer-safe pricing columns (`*_int`)
-- **Fast search & pagination** endpoints
-- **Excel import/export** (`xlsx`) and **CSV streaming** for sales
-- **Element-level receipt rendering** with **Playwright** → PNG → **ZPL** → Windows printing (pywin32)
-- **79 mm paper** layout (CSS canvas `624px` wide by default), font & spacing tuned for 203 dpi
-- **pywebview shell** (`main.py`) for a desktop-like window experience
+- **Local‑first** Flask app with templates under `templates/` and assets under `static/`  
+- **Persistent data dir** (auto‑migration of old DB & images on first run)
+- **Integer‑safe pricing** (`*_int` columns) to avoid floating‑point issues
+- **Fast search & pagination** (`/api/items/search`) and **top‑10** view
+- **Excel import/export** (xlsx) and **CSV streaming** for sales
+- **Element screenshot** of `.receipt` using **Playwright** ➜ PNG ➜ **ZPL** printing (Windows via pywin32)
+- **79 mm paper** layout (CSS canvas **624 px** width tuned for 203 dpi)
+- **pywebview shell** (`main.py`) for a desktop‑like window
 
 ---
 
-## 🗂️ Project Layout
+## 🗂 Project Layout
 
 ```
 flask-pos2.0/
-├─ app.py              # Flask app (APIs, printing, DB & file handling)
-├─ main.py             # pywebview launcher (starts Flask in background and opens a window)
-├─ templates/          # HTML templates (index, manage, sales, settings, stocklog, receipt)
-├─ static/             # CSS/JS/images (runtime images are mapped from a separate folder)
-├─ inventory.db        # (legacy location, auto-migrated on first run)
-├─ uploads/            # (legacy location, auto-migrated)
+├─ app.py              # Flask app: APIs, DB, printing, file safety
+├─ main.py             # pywebview launcher: starts Flask & opens a window
+├─ templates/          # index.html, manage.html, sales.html, settings.html, stocklog.html, receipt.html
+├─ static/             # static assets; runtime images are mapped from a separate folder
 ├─ requirements.txt
 └─ icon.ico
 ```
 
-### Runtime data directories
-
-At runtime everything is stored in a **persistent, user-space folder** (created automatically):
-
-- **Windows:** `%LOCALAPPDATA%\TreasurePOS`
-- **macOS:** `~/Library/Application Support/TreasurePOS`
-- **Linux:** `~/.local/share/treasurepos`
-
-Override with env var **`TREASUREPOS_DATA_DIR`** if you want a custom path.
-
-Folders created inside the data dir:
-
-```
-inventory.db          # SQLite DB
-uploads/              # imported Excel files (if applicable)
-images/               # product images (served via /static/images/<name>)
-```
-
-On first run, the app will **migrate** any legacy `inventory.db` and `static/images/*` into the new runtime folders.
+> **Note:** Legacy `inventory.db` and `static/images/*` are **auto‑migrated** to the runtime data directory on first run.
 
 ---
 
-## ▶️ Run From Source (Dev)
+## 📂 Runtime Data & Paths
+
+All runtime data lives in a **persistent user directory** (created automatically). You can override via `TREASUREPOS_DATA_DIR`.
+
+| Platform | Default path |
+|---|---|
+| **Windows** | `%LOCALAPPDATA%\\TreasurePOS` |
+| **macOS** | `~/Library/Application Support/TreasurePOS` |
+| **Linux** | `~/.local/share/treasurepos` |
+
+Inside this directory the app creates:
+
+```
+inventory.db   # SQLite DB
+uploads/       # Excel uploads (if any)
+images/        # product images (served via /static/images/<name>)
+```
+
+The route `/static/images/<filename>` is mapped to that **runtime** `images` folder; file names are **whitelisted** (no `..`, no absolute paths).
+
+---
+
+## ▶️ Run From Source
 
 ```bash
-# 1) Create venv & install deps
+# 1) Create venv & install dependencies
 python -m venv venv
-venv\Scripts\activate   # macOS/Linux: source venv/bin/activate
+# Windows
+venv\Scripts\activate
+# macOS/Linux
+# source venv/bin/activate
+
 pip install -r requirements.txt
 
-# 2) (One-time) install Playwright browser
+# 2) Install Playwright browser (one time per machine)
 python -m playwright install chromium
 
-# 3) Start dev server
+# 3) Start
 python app.py
-
-# By default the app binds 127.0.0.1 on an OS-chosen port (0).
-# To stick to a port (e.g. 5000), set:
-#   set TREASUREPOS_PORT=5000   (PowerShell: $env:TREASUREPOS_PORT=5000)
-#   or export TREASUREPOS_PORT=5000  (macOS/Linux)
+# or desktop window:
+python main.py
 ```
 
-**Access:** http://127.0.0.1:5000 (or the chosen port).  
-**Health check:** `/healthz` → `ok`.
+- By default the server binds to **127.0.0.1** on an **OS‑chosen port** (0).  
+  Set a port explicitly via env var `TREASUREPOS_PORT=5000` (or `PORT`).
 
-> `main.py` starts Flask on an available port and opens a **desktop window** via **pywebview**. You can run it directly for a desktop-like UX:
->
-> ```bash
-> python main.py
-> ```
+**Health check:** `GET /healthz` → `ok`
 
 ---
 
-## 🛠️ Build (PyInstaller, onedir)
+## 🛠 Build (PyInstaller, onedir)
 
-**Fast onedir build with icon (Windows):**
+**Windows (fast onedir, with icon):**
 
 ```powershell
 pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main.py ^
@@ -102,56 +125,48 @@ pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main
   --hidden-import "win32timezone"
 ```
 
-After build, run: `dist/TreasurePOS/TreasurePOS.exe`.
+Run: `dist/TreasurePOS/TreasurePOS.exe`
 
-> **First launch** on a new machine: a small pop-up may appear while **Playwright** downloads **Chromium**. If not already installed, run:
->
-> ```powershell
-> TreasurePOS\TreasurePOS.exe --install-browser
-> # or from Python:
+> **Playwright browsers**: on the first print action Playwright may download **Chromium** automatically (internet required).  
+> If you prefer to preinstall during development:
+> ```bash
 > python -m playwright install chromium
 > ```
+> Advanced (optional): set `PLAYWRIGHT_BROWSERS_PATH=0` before installing to keep browsers **inside the project** so you can ship them with your build.
 
-If packaging misses some resources, you can try adding:
+If packaging misses resources, add (use sparingly):
 
 ```powershell
-# More aggressive resource collection (if needed)
 --collect-all playwright --collect-all PIL --collect-all flask_cors --collect-all pywebview
 ```
 
 ---
 
-## ⚙️ Configuration (Env Vars)
+## ⚙️ Configuration
 
-- `TREASUREPOS_DATA_DIR` — override persistent data directory
-- `TREASUREPOS_PORT` or `PORT` — bind port for Flask; if not set, OS assigns a free one
-- Printer name is currently **hardcoded** in `app.py` under `print_receipt()`:
+- `TREASUREPOS_DATA_DIR` — custom data directory
+- `TREASUREPOS_PORT` or `PORT` — preferred port
+- Printer name is **hardcoded** in `app.py > print_receipt()`:
   ```python
   printer_name = "ZDesigner ZD230-203dpi ZPL"
   ```
-  Change it to match your installed Windows printer (Control Panel → Printers).
+  Change it to match your Windows printer.
 
 ---
 
-## 🧱 Database & Models
+## 🧱 Database
 
-SQLite DB (`inventory.db`) with the following tables (created/migrated automatically):
+SQLite (`inventory.db`) with auto‑migrations. Key tables:
 
-- **items**
-  - `barcode` (unique), `name`, `qty`, `category`, `size`, `status`, `image`, `discontinued_time`
-  - Pricing stored in both float (legacy) and **integer cents** columns:
-    - `price_int`, `wholesale_price_int` (integer, preferred for arithmetic)
-- **sales**
-  - `time`, `items` (JSON cart snapshot), `pay_type` (`cash`/`card`), `refunded`
-  - `total_int` (integer total; preferred), legacy `total` kept for compatibility
-- **sale_items**
-  - One row per item per sale: `sale_id`, `barcode`, `name`, `category`, `size`, `qty`, `price_int` (+ legacy `price`)
-- **stock_log**
-  - Manual or automatic stock changes (`in`, `out`, `sale`, `refund`, `delete_revert`)
-- **refund_log**
-  - Reason & amount for refunds/deletions
+- **items** — `barcode` (unique), `name`, `qty`, `category`, `size`, `status`, `image`, `discontinued_time`, and **integer** pricing `price_int`, `wholesale_price_int` (legacy floats kept for compatibility).
+- **sales** — `time`, `items` (JSON snapshot), `pay_type` (`cash`/`card`), `refunded`, **integer** `total_int`.
+- **sale_items** — per‑item lines with `price_int`, `qty`, `category`, `size`.
+- **stock_log** — `in`, `out`, `sale`, `refund`, `delete_revert`.
+- **refund_log** — reason + amount.
 
-> Arithmetic is always done using **integer** columns (`*_int`) when present; legacy float columns are only read as **fallback**.
+> All math uses **integer** columns when present; floats are fallback only.
+
+Indexes are created for common lookups (`items(barcode/name/category)`, `sales(time/pay_type)`, etc.).
 
 ---
 
@@ -160,109 +175,123 @@ SQLite DB (`inventory.db`) with the following tables (created/migrated automatic
 ### Import Products (Excel)
 
 - Endpoint: `POST /import/items`  
-- Excel header **must** be:  
+- Required header (case‑sensitive):  
   `barcode, name, price, wholesale_price, qty, category, size, [status], [image]`
-- **Category** allowed: `bag, top, bottom, shoes, dress` (`pants` is normalized to `bottom`)
-- **Size** allowed: `free, s, m, l, xl`
-- **Image** supports only controlled relative paths like `images/abc.jpg`. Any path outside this pattern is **ignored** for safety.
-- Negative qty is automatically rejected.
+- Category: `bag, top, bottom, shoes, dress` (`pants` normalized to `bottom`)
+- Size: `free, s, m, l, xl`
+- Image: only **relative** `images/<file>` is accepted (safe whitelist).
 
 ### Export
 
 - **Items:** `GET /export/items` → `상품목록_items.xlsx`
-- **Sales:** `GET /export/sales?start=YYYY-MM-DD&end=YYYY-MM-DD&pay_type=cash|card&fmt=xlsx|csv`
-  - `fmt=csv` returns a **streamed CSV** for large datasets
+- **Sales:** `GET /export/sales?start=YYYY-MM-DD&end=YYYY-MM-DD&pay_type=cash|card&fmt=xlsx|csv`  
+  `fmt=csv` streams CSV (better for large ranges).
 
 ---
 
-## 🔎 APIs (Selected)
+## 🔎 Core APIs
 
-- `GET /api/items` — list all items (split to on-sale & discontinued)
-- `GET /api/items/search?q=&category=&sort=&page=&page_size=` — server-side search & pagination
-- `GET /api/item/<barcode>` — single item
-- `POST /api/item` — add item (JSON or form-data with image)
-- `PUT /api/item/<barcode>` — edit item (supports changing barcode and image)
-- `DELETE /api/item/<barcode>` — delete item (and its image on disk)
-- `POST /api/stockio` — manual stock in/out (`{"barcode":"...", "change":5, "type":"in|out"}`)
-- `POST /api/sale` — checkout (writes `sales`, `sale_items`, `stock_log` atomically)
-- `GET /api/sales?page=&page_size=&pay_type=` — paginated sales
-- `POST /api/sale/delete` — batch delete sales with stock revert
-- `POST /api/sale/refund` — batch refund with stock revert
-- `GET /api/sales/top_items?days=&pay_type=` — top 10 selling items (by qty)
-- `GET /api/sales/stats?group=day|week|month|year&start=&end=&pay_type=` — sales charts
-- `GET /api/sales/heatmap_hour_weekday?metric=orders|sales|items&start=&end=&pay_type=` — heatmap
-- `GET /api/item_sales/<barcode>` — sales detail for a single item
-- `GET /healthz` — health check
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/items` | split result: `onsale`, `discontinued` |
+| GET | `/api/items/search?q=&category=&sort=&page=&page_size=` | server‑side search & pagination |
+| GET | `/api/item/<barcode>` | single item (integer prices) |
+| POST | `/api/item` | add (JSON or multipart with `image`) |
+| PUT | `/api/item/<barcode>` | edit (supports **changing** barcode & image) |
+| DELETE | `/api/item/<barcode>` | delete item (and remove its image) |
+| POST | `/api/stockio` | manual stock in/out (`{"barcode","change","type":"in|out"}`) |
+| POST | `/api/sale` | checkout (atomic: `sales`, `sale_items`, `stock_log`) |
+| GET | `/api/sales?page=&page_size=&pay_type=` | paginated sales (integer totals) |
+| POST | `/api/sale/delete` | batch delete sales (restocks if not refunded) |
+| POST | `/api/sale/refund` | batch refund (restocks) |
+| GET | `/api/sales/top_items?days=&pay_type=` | top 10 items by qty |
+| GET | `/api/sales/stats?group=day|week|month|year&start=&end=&pay_type=` | totals/ orders grouped |
+| GET | `/api/sales/heatmap_hour_weekday?metric=orders|sales|items&start=&end=&pay_type=` | heatmap data |
+| GET | `/api/item_sales/<barcode>` | sale lines for one item |
+| GET | `/healthz` | health check |
 
 ---
 
-## 🖨️ Receipt Rendering & Printing (ZPL)
+## 🖨️ Receipt Rendering & Printing
 
-- The template is **`templates/receipt.html`**. Canvas width is set to **`624px`** (≈79 mm).  
-  If your printer is strict 203 dpi you can switch to **`632px`** in the CSS.
-- Rendering pipeline:
-  1. `render_receipt_png(url, out_path, width_px=624)` — **Playwright** opens `/receipt/<id>` and takes an **element screenshot** of `.receipt` (no extra blank space).
-  2. Convert PNG → **ZPL (~DG + ^XG)** via `image_to_zpl()`.
-  3. Print with **pywin32** (Windows). Non-Windows returns a JSON note saying rendering succeeded.
+**Template:** `templates/receipt.html` (canvas width **624 px** ≈ 79 mm).
 
-- ZPL footer uses the **actual image width/height** to set `^PW` and `^LL` dynamically so the paper advances correctly.
+Pipeline in `app.py`:
 
-### Customizing your receipt
+1. **Playwright** opens `GET /receipt/<sale_id>?for_print=1` and takes an **element screenshot** of `.receipt` (no extra margins). Function: `render_receipt_png()`.
+2. PNG ➜ **ZPL** (`~DG` + `^XG`) via `image_to_zpl()`.
+3. Printer job (**Windows**): pywin32 writes raw ZPL to your configured printer in `print_receipt()`.
 
-Open `templates/receipt.html` and tweak these safe knobs:
+The ZPL wrapper sets **`^PW`** (width) and **`^LL`** (length) from the real image size to avoid over/under‑feed.
 
-- **Logo & spacing:** `.logo-container{ margin:6px 0 24px; }`
-- **Table alignment:** *Column 2 & 3 are centered; Column 4 is right-aligned & vertically centered; Names wrap; qty is centered.*
-- **VAT notice:** text size is slightly larger; “not included” wording shown only for cash.
-- **Bottom blank:** `.tail-blank{ height: calc(2 * var(--cm)); }` ensures a fixed ~2 cm tear margin.
+---
 
-> If you see **multiple horizontal lines** before totals, make sure you have **only one** `<hr>` in the template and avoid table borders that clash with it.
+## 🎨 Customize the Receipt
+
+Open `templates/receipt.html`. Useful knobs:
+
+- **Canvas width:** `:root { --paper-w: 624px; }`
+- **Logo spacing:** `.logo-container { margin: 6px 0 24px; }`
+- **Table alignment:** Column 2 & 3 centered; Column 4 right‑aligned & vertically centered; names wrap nicely.
+- **Bottom tear margin:** `.tail-blank { height: calc(2 * var(--cm)); }`
+- **No overlap:** totals block is isolated in its own container (`.totals`), and the screenshot is element‑based, so long names/quantities won’t overlap totals.
+
+If you ever see **multiple horizontal lines**, ensure there’s only **one** `<hr>` around the table and that table borders don’t duplicate the line (only `border-bottom` on rows).
 
 ---
 
 ## 🧰 Troubleshooting
 
-- **Playwright not available**: install with `python -m playwright install chromium`.
-- **Printer not found**: edit `printer_name` in `app.py` (`print_receipt`) to your actual Windows printer.
-- **Port already used**: set `TREASUREPOS_PORT` to a free port (e.g. 5001) or use `main.py` which auto-picks a port.
-- **Images not showing**: only file names like `images/xxx.png` are allowed; anything else is blocked by the safety filter.
-- **EXE missing resources**: rebuild with additional `--collect-all` flags (see build section).
+- **Playwright missing** → `python -m playwright install chromium`  
+- **Printer not found** → set your printer name in `print_receipt()`  
+- **Port conflict** → set `TREASUREPOS_PORT` to a free port (e.g., 5001)  
+- **Images not loading** → only `images/<file>` paths are allowed; others are sanitized away  
+- **EXE lacks resources** → add `--collect-all` flags (see build section)
+
+---
+
+## 🌐 i18n
+
+Language dictionary lives in `app.py` (`TEXTS`). Default is **Korean** if no cookie is present. Switch language via:
+```
+/set_lang/ko   /set_lang/zh   /set_lang/en
+```
 
 ---
 
 ## 📜 License
 
-Private project — choose a license that fits your distribution model (MIT/Apache-2.0/Proprietary).
+Choose a license suitable for your distribution (MIT/Apache‑2.0/Proprietary).
 
 ---
 
 # 🇨🇳 简体中文
 
-## 概述
+## ✨ 特性
 
-TreasurePOS 是一个**本地优先**的收银系统，基于 Flask。库存、销售、退款、出入库都包含在内；导入/导出 Excel，销售支持 CSV 流式导出。小票使用 **Playwright** 截图元素（`.receipt`），再转 **ZPL** 发送到条码打印机（Windows 下使用 pywin32）。
+- **本地优先**：模板在 `templates/`，静态资源在 `static/`
+- **数据持久化**：首次运行自动迁移旧 DB 和图片
+- **整数金额列**（`*_int`）避免浮点误差
+- **服务端搜索/分页**、TOP10
+- **Excel 导入/导出**，销售支持 **CSV 流式**导出
+- **Playwright** 仅截取 `.receipt` 元素 ➜ PNG ➜ **ZPL** 打印（Windows 使用 pywin32）
+- **79 mm** 小票（画布 **624px**）
+- `main.py` 提供 **pywebview** 桌面壳
 
-### 主要特点
-
-- 数据持久化到用户数据目录（自动迁移旧库与旧图片）
-- 价格用 **整数**列（`*_int`）计算，避免浮点误差
-- 高性能搜索/分页 API
-- Excel 导入导出 & CSV 导出
-- 79 mm 小票（默认 624px 画布）
-- 桌面壳：`main.py` 通过 pywebview 打开窗口
-
-## 安装与运行
+## ▶️ 运行
 
 ```bash
 python -m venv venv
-venv\Scripts\activate    # macOS/Linux: source venv/bin/activate
+venv\Scripts\activate  # macOS/Linux: source venv/bin/activate
 pip install -r requirements.txt
 python -m playwright install chromium
-python app.py                 # 或 python main.py 启动桌面窗口
-# 如需固定端口： set TREASUREPOS_PORT=5000
+python app.py     # 或 python main.py
 ```
 
-## 打包（onedir，带图标）
+**端口**：默认随机；通过 `TREASUREPOS_PORT`/`PORT` 指定。  
+**健康检查**：`/healthz` 返回 `ok`。
+
+## 🛠 打包（onedir，带图标）
 
 ```powershell
 pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main.py ^
@@ -272,54 +301,65 @@ pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main
   --hidden-import "win32timezone"
 ```
 
-首次运行若缺浏览器，请执行：`python -m playwright install chromium`。
+> **Playwright 浏览器**：首次打印可能自动下载 **Chromium**（需联网）。也可在打包前执行：  
+> `python -m playwright install chromium`。  
+> 进阶：设置 `PLAYWRIGHT_BROWSERS_PATH=0` 将浏览器装进项目目录，便于随包分发。
 
-## 配置
+## ⚙️ 配置
 
-- `TREASUREPOS_DATA_DIR`：自定义数据目录
-- `TREASUREPOS_PORT`/`PORT`：端口
-- 打印机名在 `app.py` 的 `print_receipt()` 中修改
+- `TREASUREPOS_DATA_DIR` — 自定义数据目录
+- `TREASUREPOS_PORT`/`PORT` — 监听端口
+- 打印机名在 `app.py > print_receipt()` 中修改：
+  ```python
+  printer_name = "ZDesigner ZD230-203dpi ZPL"
+  ```
 
-## 常用 API
+## 📦 导入导出
 
-- `POST /import/items` 导入；`GET /export/items` 导出商品
-- `GET /export/sales?...&fmt=csv` 导出销售 CSV
-- `POST /api/sale` 结算；`POST /api/sale/refund` 退款；`POST /api/sale/delete` 删除订单（回补库存）
-- `GET /api/items/search` 搜索分页；`GET /api/sales/stats` 统计；`GET /api/sales/heatmap_hour_weekday` 热力图
+- 导入：`POST /import/items`（Excel 表头需为 `barcode, name, price, wholesale_price, qty, category, size, [status], [image]`）  
+- 导出：`GET /export/items`、`GET /export/sales?...&fmt=xlsx|csv`（CSV 为流式）
 
-## 自定义小票
+## 🔎 常用接口
 
-编辑 `templates/receipt.html`：Logo 间距、表格对齐、VAT 文案和底部空白等均可直接改 CSS 变量/类名。
+见上文英文表格（路径一致）。
+
+## 🎨 自定义小票
+
+在 `templates/receipt.html` 调整：Logo 间距、列对齐、底部留白等；`.totals` 独立容器避免覆盖。
+
+## 🧰 排错
+
+Playwright 未安装 / 打印机未找到 / 端口冲突 / 图片路径不安全 / EXE 资源缺失 —— 见英文部分对应解决方案。
 
 ---
 
 # 🇰🇷 한국어
 
-## 개요
+## ✨ 특징
 
-TreasurePOS는 **로컬 우선** Flask 기반 POS입니다. 재고·판매·환불·입출고를 지원하며, 엑셀 가져오기/내보내기와 판매 CSV 스트리밍을 제공합니다. 영수증은 **Playwright**로 `.receipt` 요소만 캡처하여 PNG로 만들고, 이를 **ZPL**로 변환해 Windows 프린터( pywin32 )로 출력합니다.
+- **로컬 우선**: `templates/`, `static/` 구조
+- **영구 데이터 디렉터리**: 첫 실행 시 기존 DB·이미지 자동 마이그레이션
+- **정수 금액 컬럼**(`*_int`)으로 계산
+- **서버 측 검색/페이지네이션**, TOP10
+- **Excel 가져오기/내보내기**, 판매 **CSV 스트리밍**
+- **Playwright**가 `.receipt` 요소만 캡처 ➜ PNG ➜ **ZPL** 인쇄(Windows pywin32)
+- **79 mm** 용지(캔버스 **624px**)
+- `main.py` 로 **pywebview** 데스크톱 창 제공
 
-### 특징
-
-- 사용자 데이터 폴더에 **영구 저장**(최초 실행 시 기존 DB/이미지 자동 마이그레이션)
-- 금액은 **정수 컬럼**(`*_int`)으로 계산해 오차 방지
-- 고성능 검색/페이지네이션 API
-- Excel 입·출력 & CSV 내보내기
-- 79 mm 용지(기본 624px 캔버스)
-- `main.py`로 데스크톱 창(pywebview) 실행 가능
-
-## 설치 및 실행
+## ▶️ 실행
 
 ```bash
 python -m venv venv
 venv\Scripts\activate   # macOS/Linux: source venv/bin/activate
 pip install -r requirements.txt
 python -m playwright install chromium
-python app.py             # 또는 python main.py
-# 고정 포트가 필요하면: set TREASUREPOS_PORT=5000
+python app.py           # 또는 python main.py
 ```
 
-## 빌드(onedir, 아이콘 포함)
+**포트**: 기본은 자동 선택; `TREASUREPOS_PORT`/`PORT` 로 지정.  
+**상태 확인**: `/healthz` → `ok`.
+
+## 🛠 빌드 (onedir, 아이콘 포함)
 
 ```powershell
 pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main.py ^
@@ -329,32 +369,32 @@ pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main
   --hidden-import "win32timezone"
 ```
 
-최초 실행 시 브라우저가 없으면 `python -m playwright install chromium`을 먼저 실행하세요.
+> **Playwright 브라우저**: 첫 인쇄 시 **Chromium**이 자동 다운로드될 수 있습니다(인터넷 필요).  
+> 사전 설치하려면 `python -m playwright install chromium` 실행.  
+> 고급: `PLAYWRIGHT_BROWSERS_PATH=0` 설정 후 설치하면 프로젝트 폴더에 브라우저가 위치합니다.
 
-## 환경 변수
+## ⚙️ 설정
 
-- `TREASUREPOS_DATA_DIR` — 데이터 폴더 지정
+- `TREASUREPOS_DATA_DIR` — 데이터 경로
 - `TREASUREPOS_PORT`/`PORT` — 포트
-- 프린터 이름은 `app.py` 의 `print_receipt()` 내부에서 변경
+- 프린터 이름: `app.py > print_receipt()`에서 변경
+  ```python
+  printer_name = "ZDesigner ZD230-203dpi ZPL"
+  ```
 
-## 주요 API
+## 📦 가져오기/내보내기
 
-- `POST /import/items` 상품 엑셀 가져오기 · `GET /export/items` 내보내기
-- `GET /export/sales?...&fmt=csv` 판매 CSV
-- `POST /api/sale` 결제 · `POST /api/sale/refund` 환불 · `POST /api/sale/delete` 삭제(재고 복원)
-- `GET /api/items/search` 검색/페이지 · `GET /api/sales/stats` 통계 · `GET /api/sales/heatmap_hour_weekday` 히트맵
+- 가져오기: `POST /import/items` (엑셀 헤더 필수: `barcode, name, price, wholesale_price, qty, category, size, [status], [image]`)  
+- 내보내기: `GET /export/items`, `GET /export/sales?...&fmt=xlsx|csv`
 
-## 영수증 커스터마이즈
+## 🔎 주요 API
 
-`templates/receipt.html`에서 로고 간격, 표 정렬, VAT 문구, 하단 공백 등을 간단히 CSS로 조정할 수 있습니다.
+영문 표와 동일.
 
----
+## 🎨 영수증 커스터마이즈
 
-*This README supersedes the previous one. Below is the original content preserved for reference.*
+`templates/receipt.html` 에서 로고 간격/열 정렬/하단 여백 등을 CSS로 조정. `.totals` 분리로 콘텐츠 겹침 방지.
 
-<details>
-<summary>Original README (collapsed)</summary>
+## 🧰 문제 해결
 
-{old_text}
-
-</details>
+Playwright 설치/프린터 이름/포트 충돌/이미지 경로/EXE 리소스 이슈 등은 영문 절을 참고하세요.
