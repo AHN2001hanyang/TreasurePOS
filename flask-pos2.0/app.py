@@ -15,7 +15,7 @@ import csv
 import io
 
 # ===== 多语言字典 + 分类/尺码映射 =====
-CATEGORY_CODE = ['bag', 'top', 'bottom', 'shoes']
+CATEGORY_CODE = ['bag', 'top', 'bottom', 'shoes','dress']
 SIZE_CODE = ['free', 's', 'm', 'l', 'xl']
 
 TEXTS = {
@@ -36,7 +36,7 @@ TEXTS = {
         'image': '이미지', 'detail': '상세', 'onsale': '판매중', 'discontinued_time': '절판시간',
         'sale_records': '판매 기록', 'no_sale_record': '판매 기록 없음', 'sale_id': '판매ID',
         'loading': '로딩중...', 'restore': '복구', 'size': '사이즈', 'category': '분류',
-        'category_bag': '가방', 'category_top': '상의', 'category_bottom': '하의', 'category_shoes': '신발',
+        'category_bag': '가방', 'category_top': '상의', 'category_bottom': '하의', 'category_shoes': '신발','category_dress': '원피스',
         'size_free': 'FREE', 'size_s': 'S', 'size_m': 'M', 'size_l': 'L', 'size_xl': 'XL',
         'retail': '소매가', 'choose_price_type': '가격 선택', 'sort': '정렬',
         'sort_default': '기본순', 'sort_price_asc': '가격↑', 'sort_price_desc': '가격↓',
@@ -80,7 +80,7 @@ TEXTS = {
         'image': '图片', 'detail': '详情', 'onsale': '在售', 'discontinued_time': '下架时间',
         'sale_records': '销售记录', 'no_sale_record': '暂无销售记录', 'sale_id': '销售ID',
         'loading': '加载中...', 'restore': '恢复', 'size': '尺码', 'category': '分类',
-        'category_bag': '包', 'category_top': '上衣', 'category_bottom': '下装', 'category_shoes': '鞋',
+        'category_bag': '包', 'category_top': '上衣', 'category_bottom': '下装', 'category_shoes': '鞋','category_dress': '连衣裙', 
         'size_free': '均码', 'size_s': 'S', 'size_m': 'M', 'size_l': 'L', 'size_xl': 'XL',
         'retail': '零售价', 'choose_price_type': '选择价格', 'sort': '排序',
         'sort_default': '默认', 'sort_price_asc': '价格↑', 'sort_price_desc': '价格↓',
@@ -124,7 +124,7 @@ TEXTS = {
         'image': 'Image', 'detail': 'Detail', 'onsale': 'On Sale', 'discontinued_time': 'Discontinued Time',
         'sale_records': 'Sales Record', 'no_sale_record': 'No sales record', 'sale_id': 'Sale ID',
         'loading': 'Loading...', 'restore': 'Restore', 'size': 'Size', 'category': 'Category',
-        'category_bag': 'Bag', 'category_top': 'Top', 'category_bottom': 'Bottom', 'category_shoes': 'Shoes',
+        'category_bag': 'Bag', 'category_top': 'Top', 'category_bottom': 'Bottom', 'category_shoes': 'Shoes','category_dress': 'Dress',
         'size_free': 'FREE', 'size_s': 'S', 'size_m': 'M', 'size_l': 'L', 'size_xl': 'XL',
         'retail': 'Retail', 'choose_price_type': 'Price Type', 'sort': 'Sort',
         'sort_default': 'Default', 'sort_price_asc': 'Price↑', 'sort_price_desc': 'Price↓',
