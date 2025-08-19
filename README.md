@@ -4,7 +4,7 @@
 
 **Flask-based Local POS System with 79mm Receipt Printing & ZPL Support**
 
-[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
 [![Flask](https://img.shields.io/badge/Flask-2.0+-green.svg)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/yourusername/treasurepos)
