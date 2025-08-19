@@ -174,37 +174,38 @@ export TREASUREPOS_DATA_DIR=/path/to/data    # Unix
 
 ## 📦 Build · PyInstaller (onedir)
 
-### 🚀 **Recommended Windows Build**
+### 🚀 **Recommended Windows Build (fast startup · no console)**
 ```powershell
-pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main.py ^
+pyinstaller --onedir --windowed --noconfirm --clean --name TreasurePOS --icon icon.ico ^
   --add-data "templates;templates" ^
-  --hidden-import "playwright.sync_api" ^
-  --hidden-import "win32timezone"
+  --add-data "static;static" ^
+  --add-data "uploads;uploads" ^
+  main.py
 ```
-
 **Launch**: `dist\TreasurePOS\TreasurePOS.exe`
 
-### 🔧 **Chromium Setup for Target Machine**
-If Chromium isn't available on the deployment machine:
-```powershell
-python -m playwright install chromium
-```
+> ℹ️ On macOS/Linux, replace `;` with `:` inside `--add-data` (e.g., `--add-data "templates:templates"`).
 
-> ⚠️ **Important**: Printing requires Chromium for element screenshots.
-
-### 🛠️ **Advanced Build (if resources are missing)**
-```powershell
-pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main.py ^
-  --add-data "templates;templates" ^
-  --hidden-import "playwright.sync_api" ^
-  --hidden-import "win32timezone" ^
-  --collect-all playwright ^
-  --collect-all PIL ^
-  --collect-all flask_cors ^
-  --collect-all pywebview
-```
-
----
+### 🖨️ Playwright Runtime (for receipt screenshots)
+- **Option A · Use system Microsoft Edge (recommended, smallest bundle)**  
+  ```python
+  browser = await p.chromium.launch(channel="msedge", headless=True)
+  ```
+- **Option B · Install Chromium on the target PC**  
+  ```powershell
+  python -m playwright install chromium
+  ```
+- **Option C · Bundle Chromium with the app**  
+  ```powershell
+  set PLAYWRIGHT_BROWSERS_PATH=playwright-browsers
+  python -m playwright install chromium
+  pyinstaller --onedir --windowed --noconfirm --clean --name TreasurePOS --icon icon.ico ^
+    --add-data "templates;templates" ^
+    --add-data "static;static" ^
+    --add-data "uploads;uploads" ^
+    --add-data "playwright-browsers;playwright/driver/package/.local-browsers" ^
+    main.py
+  ```
 
 ## ⚙️ Configuration
 
@@ -519,18 +520,39 @@ python main.py     # 桌面窗口
 - **健康检查**: `/healthz` → 返回 `ok`
 - **环境变量**: `TREASUREPOS_PORT`（端口），`TREASUREPOS_DATA_DIR`（数据目录）
 
-## 📦 应用打包
+## 📦 应用打包（Windows）
 
 ```powershell
-pyinstaller --noconfirm --clean --onedir --name TreasurePOS --icon icon.ico main.py ^
+pyinstaller --onedir --windowed --noconfirm --clean --name TreasurePOS --icon icon.ico ^
   --add-data "templates;templates" ^
-  --hidden-import "playwright.sync_api" ^
-  --hidden-import "win32timezone"
+  --add-data "static;static" ^
+  --add-data "uploads;uploads" ^
+  main.py
 ```
+**启动**：`dist\TreasurePOS\TreasurePOS.exe`
 
-**运行**: `dist\TreasurePOS\TreasurePOS.exe`
+> ℹ️ macOS/Linux 把 `--add-data` 中的分号 `;` 改成冒号 `:`（例：`--add-data "templates:templates"`）。
 
-> 🔧 首次运行如缺少浏览器: `python -m playwright install chromium`
+### 🖨️ Playwright 运行方式
+- **A · 使用系统 Edge（推荐，体积最小）**
+  ```python
+  browser = await p.chromium.launch(channel="msedge", headless=True)
+  ```
+- **B · 在目标机安装 Chromium**
+  ```powershell
+  python -m playwright install chromium
+  ```
+- **C · 把 Chromium 一起打进 onedir（离线运行）**
+  ```powershell
+  set PLAYWRIGHT_BROWSERS_PATH=playwright-browsers
+  python -m playwright install chromium
+  pyinstaller --onedir --windowed --noconfirm --clean --name TreasurePOS --icon icon.ico ^
+    --add-data "templates;templates" ^
+    --add-data "static;static" ^
+    --add-data "uploads;uploads" ^
+    --add-data "playwright-browsers;playwright/driver/package/.local-browsers" ^
+    main.py
+  ```
 
 ## 🧾 小票样式调整
 
