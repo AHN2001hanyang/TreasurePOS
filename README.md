@@ -216,13 +216,30 @@ pyinstaller --onedir --windowed --noconfirm --clean --name TreasurePOS --icon ic
 | `TREASUREPOS_PORT` | Server port | Auto-assigned |
 | `PORT` | Alternative port variable | Auto-assigned |
 
-### 🖨️ **Printer Configuration**
-Edit `app.py` → `print_receipt()` function:
+### 🖨️ **Printer Configuration (Hardcoded default: Zebra ZD230, 79 mm)**
+The default build targets **Zebra ZD230 (203 dpi, ZPL)** and a **paper width of ~79 mm**.  
+Edit `app.py` → `print_receipt()`:
+
 ```python
-printer_name = "ZDesigner ZD230-203dpi ZPL"  # Change to your printer's name
+# Default (hardcoded) printer name
+printer_name = "ZDesigner ZD230-203dpi ZPL"
 ```
 
----
+> If you use another Zebra model, change the string above to your device's name as shown in **Windows → Devices & Printers**.
+
+#### 🔧 Fine‑tuning for your printer / paper
+1) **Change printer model**: set the exact Windows printer name in `app.py` (see above).  
+2) **Adjust paper width** (default **624px ≈ 79 mm at 203 dpi**):
+   - Open `templates/receipt.html`, change the CSS root variable:
+     ```css
+     :root { --paper-w: 624px; }   /* 79mm default */
+     /* Examples:
+        576px ≈ 58mm paper
+        832px ≈ 106mm paper (if printer supports) */
+     ```
+3) **Margins / spacing**: tweak CSS (logo gaps, table paddings). See **Receipt Customization** section below.  
+4) **Print density**: in Windows printer properties, set **203 dpi** to match ZD230; try increasing darkness if print is light.  
+5) **Test & iterate**: print a sample sale and adjust `--paper-w`, paddings, and font sizes until it fits perfectly.
 
 ## 🗃️ Database Schema (SQLite)
 
@@ -354,7 +371,7 @@ GET    /static/images/<filename>            # Serve product images
 
 ## 🧾 Receipt Customization
 
-The receipt system uses `templates/receipt.html` with a **624px canvas width** (≈79mm paper).
+The receipt system uses `templates/receipt.html` with a **624px canvas width** (≈79 mm paper). Default target is **Zebra ZD230 (203 dpi, ZPL)**.
 
 ### **🔄 Processing Pipeline**
 ```
@@ -556,6 +573,8 @@ pyinstaller --onedir --windowed --noconfirm --clean --name TreasurePOS --icon ic
 
 ## 🧾 小票样式调整
 
+> **默认适配**：Zebra **ZD230**（203 dpi，ZPL），纸宽 **约 79 mm**；如需改纸宽，请在 `templates/receipt.html` 修改 `--paper-w` 值（如 576px≈58mm）。
+
 小票模板位于 `templates/receipt.html`，画布宽度 **624px**（≈79mm）
 
 ### CSS 样式定制
@@ -632,3 +651,4 @@ python -m playwright install chromium
 python app.py      # 웹 인터페이스
 python main.py     # 데스크톱 창
 ```
+
