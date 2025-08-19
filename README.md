@@ -632,7 +632,3 @@ python -m playwright install chromium
 python app.py      # 웹 인터페이스
 python main.py     # 데스크톱 창
 ```
-
-- **접속 주소**: http://127.0.0.1:5000
-- **상태 확인**: `/healthz` → `ok` 반환
-- **환
